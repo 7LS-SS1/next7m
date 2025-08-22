@@ -1,0 +1,34 @@
+name: Prisma Migrate Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - run: pnpm i
+
+      - name: Generate Prisma
+        run: pnpm prisma generate
+
+      # ใช้ DIRECT URL ต่อฐานจริง (Neon/Supabase/RDS ฯลฯ)
+      - name: Migrate deploy (Production DB)
+        run: pnpm prisma migrate deploy
+        env:
+          DATABASE_DIRECT_URL: ${{ secrets.DATABASE_DIRECT_URL }}
+          # ถ้า schema.prisma มี shadowDatabaseUrl:
+          SHADOW_DATABASE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
