@@ -5,8 +5,14 @@ import { notFound } from "next/navigation";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function EditTeamPage({ params }: { params: { id: string } }) {
-  const row = await prisma.team.findUnique({ where: { id: params.id } });
+export default async function EditTeamPage({ params }: { params: any }) {
+  // Next 15 sometimes types params as Promise; normalize it to a plain object
+  const p = params && typeof params.then === "function" ? await params : params;
+  const rawId = p?.id ?? "";
+  const id = decodeURIComponent(String(rawId));
+  if (!id) notFound();
+
+  const row = await prisma.team.findUnique({ where: { id } });
   if (!row) notFound();
 
   return (

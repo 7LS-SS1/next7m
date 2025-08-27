@@ -5,7 +5,17 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { putToBlob, parseBool, s, slugify } from "@/lib/upload";
+import { saveUpload } from "@/lib/upload";
+import { parseBoolean } from "@/lib/zod-helpers";
+import slugify from "@/lib/slugify";
+
+// Coerce unknown FormData values to trimmed string
+function s(v: unknown): string | undefined {
+  if (typeof v === "string") return v.trim() || undefined;
+  if (v == null) return undefined;
+  const t = (v as any)?.toString?.();
+  return typeof t === "string" ? (t.trim() || undefined) : undefined;
+}
 
 const MAX_ICON_MB = 5;   // กันไฟล์ใหญ่เกิน (อ่านง่าย)
 const MAX_FILE_MB = 200; // ปลั๊กอินบางทีใหญ่
@@ -62,15 +72,15 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3) อัปโหลดไป Vercel Blob ถ้ามี token (ถ้าไม่มีก็จะข้าม)
+    // 3) อัปโหลดไฟล์ไปยัง public/uploads (หรือสลับเป็น Blob ได้ภายหลัง)
     try {
       if (iconFile instanceof File && iconFile.size > 0) {
-        const uploaded = await putToBlob(iconFile, "plugins/icons");
-        if (uploaded) iconUrl = uploaded;
+        const uploaded = await saveUpload(iconFile, "icons");
+        if (uploaded) iconUrl = uploaded; // e.g. /uploads/icons/xxxx.png
       }
       if (pkgFile instanceof File && pkgFile.size > 0) {
-        const uploaded = await putToBlob(pkgFile, "plugins/files");
-        if (uploaded) fileUrl = uploaded;
+        const uploaded = await saveUpload(pkgFile, "files");
+        if (uploaded) fileUrl = uploaded; // e.g. /uploads/files/xxxx.zip
       }
     } catch (e: any) {
       console.error("[plugin:create] upload error:", e);
@@ -80,8 +90,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const recommended = parseBool(fd.get("recommended"));
-    const featured = parseBool(fd.get("featured"));
+    const recommended = parseBoolean(fd.get("recommended"));
+    const featured = parseBoolean(fd.get("featured"));
 
     // 4) สร้าง slug ป้องกันซ้ำ
     let slug = slugify(name);

@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+export function parseBoolean(value: FormDataEntryValue | null | undefined): boolean {
+if (typeof value === "string") {
+  return value === "true" || value === "on" || value === "1";
+}
+return false;
+}
+
 /**
  * ยอมรับได้ 3 กรณี:
  * - absolute url: http(s)://...

@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import ThemeHydrator from "@/components/ThemeHydrator";
 import ToasterProvider from "@/components/ToasterProvider";
 import ToastMount from "@/components/ToastMount";
+import { Suspense } from "react";
 
 const prompt = Prompt({
   subsets: ["thai", "latin"],
@@ -37,7 +38,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Mount Toaster once for the whole app */}
         <ToasterProvider />
         {/* Global toast trigger reads ?toast= from URL and fires notifications */}
-        <ToastMount />
+        <Suspense fallback={null}>
+          <ToastMount />
+        </Suspense>
       </body>
     </html>
   );

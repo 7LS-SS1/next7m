@@ -5,8 +5,9 @@ import { notFound } from "next/navigation";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function EditDomainPage({ params }: { params: { id: string } }) {
-  const row = await prisma.domain.findUnique({ where: { id: params.id } });
+export default async function EditDomainPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const row = await prisma.domain.findUnique({ where: { id } });
   if (!row) notFound();
 
   return (

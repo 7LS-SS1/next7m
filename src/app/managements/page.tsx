@@ -1,6 +1,7 @@
 // src/app/managements/page.tsx
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -170,7 +171,7 @@ function LatestCard({
 }: {
   title: string;
   headers: string[];
-  rows: (string | number | JSX.Element)[][];
+  rows: ReactNode[][];
   moreHref: string;
 }) {
   return (
@@ -192,7 +193,7 @@ function LatestCard({
             rows.map((r, idx) => (
               <tr key={idx} className="border-t border-white/10">
                 {r.map((c, i) => (
-                  <td key={i} className="p-3">{c as any}</td>
+                  <td key={i} className="p-3">{c}</td>
                 ))}
               </tr>
             ))

@@ -72,7 +72,7 @@ export default function RichText({
   useEffect(() => {
     if (!editor) return;
     if (value != null && value !== val) {
-      editor.commands.setContent(value, false);
+      editor.commands.setContent(value, { emitUpdate: false });
       setVal(value);
     }
   }, [value, editor]);

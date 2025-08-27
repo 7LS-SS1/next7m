@@ -6,10 +6,11 @@ import ConfirmSubmit from "@/components/ConfirmSubmit";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type Props = { searchParams?: { q?: string } };
+type PageProps = { searchParams: Promise<{ q?: string }> };
 
-export default async function DomainsPage({ searchParams }: Props) {
-  const q = (searchParams?.q ?? "").trim();
+export default async function DomainsPage({ searchParams }: PageProps) {
+  const sp = await searchParams;
+  const q = (sp?.q ?? "").trim();
 
   // สร้าง where แบบยืดหยุ่น (มี/ไม่มี q)
   const where =

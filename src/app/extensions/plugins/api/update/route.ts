@@ -4,7 +4,25 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { putToBlob, parseBool, s, slugify } from "@/lib/upload";
+import { saveUpload } from "@/lib/upload";
+import { parseBoolean } from "@/lib/zod-helpers";
+import slugify from "@/lib/slugify";
+
+// Coerce FormDataEntryValue (or unknown) to a trimmed string or undefined
+function s(input: unknown): string | undefined {
+  if (typeof input === "string") {
+    const t = input.trim();
+    return t.length ? t : undefined;
+  }
+  if (input == null) return undefined;
+  if (input instanceof File) return undefined; // files handled separately
+  try {
+    const t = String(input).trim();
+    return t.length ? t : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -29,16 +47,16 @@ export async function POST(req: Request) {
     let fileUrl = s(fd.get("fileUrl"));
 
     if (iconFile instanceof File && iconFile.size > 0) {
-      const uploaded = await putToBlob(iconFile, "plugins/icons");
+      const uploaded = await saveUpload(iconFile, "icons");
       if (uploaded) iconUrl = uploaded;
     }
     if (pkgFile instanceof File && pkgFile.size > 0) {
-      const uploaded = await putToBlob(pkgFile, "plugins/files");
+      const uploaded = await saveUpload(pkgFile, "files");
       if (uploaded) fileUrl = uploaded;
     }
 
-    const recommended = fd.has("recommended") ? parseBool(fd.get("recommended")) : undefined;
-    const featured = fd.has("featured") ? parseBool(fd.get("featured")) : undefined;
+    const recommended = fd.has("recommended") ? parseBoolean(fd.get("recommended")) : undefined;
+    const featured = fd.has("featured") ? parseBoolean(fd.get("featured")) : undefined;
 
     const where = id ? { id } : { slug: slugParam! };
 

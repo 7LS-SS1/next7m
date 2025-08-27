@@ -10,9 +10,10 @@ export const revalidate = 0;
 export default async function PluginsIndexPage({
   searchParams,
 }: {
-  searchParams?: { q?: string };
+  searchParams: Promise<{ q?: string }>;
 }) {
-  const q = (searchParams?.q || "").trim();
+  const sp = await searchParams;
+  const q = (sp?.q || "").trim();
 
   // ถ้ามี model Plugin ให้ใช้ plugin; ถ้าโปรเจคคุณยังใช้ Program+category:"Plugin" อยู่ ให้สลับคอมเมนต์สองบรรทัดด้านล่าง
   // const rows = await prisma.program.findMany({ where: { category: { equals: "Plugin", mode: "insensitive" } }, orderBy: { updatedAt: "desc" } });
@@ -58,7 +59,7 @@ export default async function PluginsIndexPage({
             <p className="text-xs md:text-sm text-white/60 mt-0.5">จัดการปลั๊กอินทั้งหมด ค้นหา อัปเดต และดาวน์โหลดได้จากที่เดียว</p>
           </div>
           <div className="flex items-center gap-2">
-            <form action="/plugins" className="relative hidden sm:block">
+            <form action="/extensions/plugins" className="relative hidden sm:block">
               <input
                 type="search"
                 name="q"
@@ -94,7 +95,7 @@ export default async function PluginsIndexPage({
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {featured.map((p) => (
-              <ProgramCard key={p.id} item={p as any} basePath="/extensions/plugins" accent />
+              <ProgramCard key={p.id} item={p as any} basePath="/extensions/plugins" />
             ))}
           </div>
         </section>

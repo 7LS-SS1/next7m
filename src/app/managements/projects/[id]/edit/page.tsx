@@ -5,8 +5,12 @@ import { notFound } from "next/navigation";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function EditProjectPage({ params }: { params: { id: string } }) {
-  const row = await prisma.project.findUnique({ where: { id: params.id } });
+export default async function EditProjectPage({ params }: { params: any }) {
+  // Next 15 App Router may provide `params` as a Promise in typegen; normalize here
+  const p = params && typeof (params as any).then === "function" ? await params : params;
+  const id = typeof p?.id === "string" ? p.id : "";
+  if (!id) notFound();
+  const row = await prisma.project.findUnique({ where: { id } });
   if (!row) notFound();
 
   return (

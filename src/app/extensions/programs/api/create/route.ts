@@ -11,10 +11,18 @@ const BodySchema = z.object({
   name: z.string().min(1, "ต้องใส่ชื่อ"),
   version: z.string().optional(),
   vendor: z.string().optional(),
-  category: z.string().optional(),
+  category: z
+    .string()
+    .trim()
+    .transform((v) => (v && v.length > 0 ? v : "Etc."))
+    .default("Etc."),
   content: z.string().optional(),
-  iconUrl: RelOrAbsUrl,
-  fileUrl: RelOrAbsUrl,
+  iconUrl: RelOrAbsUrl.optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v : undefined)),
+  fileUrl: RelOrAbsUrl.optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v : undefined)),
   recommended: z.boolean().optional().default(false),
   isRecommended: z.boolean().optional().default(false),
   featured: z.boolean().optional().default(false),
@@ -58,9 +66,14 @@ export async function POST(req: Request) {
     const data = parsed.data;
     const slug = slugify(data.name);
 
+    const dataOut = {
+      ...data,
+      category: data.category || "Etc.",
+    };
+
     const created = await prisma.program.create({
       data: {
-        ...data,
+        ...dataOut,
         slug,
       },
       select: { id: true, slug: true, name: true },

@@ -31,6 +31,7 @@ type Props = {
     featured?: boolean;
   };
   actionUrl: string; // `/extensions/plugins/api/create` หรือ `/extensions/plugins/api/update`
+  redirectTo?: string; // path สำหรับ redirect หลังบันทึกสำเร็จ (ค่าเริ่มต้น: "/extensions/plugins")
 };
 
 // ====== Helpers ======

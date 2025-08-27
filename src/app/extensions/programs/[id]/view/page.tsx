@@ -8,15 +8,12 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 // ✅ ใช้ Promise<PageProps> ให้สอดคล้องกับ Next 15 (รองรับทั้งรูปแบบ sync/async)
-type PageProps = { params: Promise<{ id: string }> | { id: string } };
+type PageProps = { params: Promise<{ id: string }> };
 
 export default async function ProgramViewPage({ params }: PageProps) {
-  // รองรับทั้ง params แบบ Promise และแบบปกติ
-  const p = (typeof (params as any)?.then === "function")
-    ? await (params as Promise<{ id: string }>)
-    : (params as { id: string });
-
-  const raw = p?.id ?? "";
+  // Next 15: params เป็น Promise ต้อง await ก่อนใช้
+  const { id: rawId } = await params;
+  const raw = rawId ?? "";
   const id = decodeURIComponent(raw);
 
   // กลุ่ม candidate slug/name เพื่อให้ค้นหาเจอ แม้พิมพ์มีช่องว่าง/ตัวพิมพ์ต่าง

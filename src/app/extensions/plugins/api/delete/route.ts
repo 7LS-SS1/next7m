@@ -4,7 +4,23 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { s } from "@/lib/upload";
+
+// Coerce FormDataEntryValue (or unknown) to a trimmed string or undefined
+function s(input: unknown): string | undefined {
+  if (typeof input === "string") {
+    const t = input.trim();
+    return t.length ? t : undefined;
+  }
+  if (input == null) return undefined;
+  if (input instanceof File) return undefined; // files handled separately
+  try {
+    const t = String(input).trim();
+    return t.length ? t : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 
 export async function POST(req: Request) {
   try {

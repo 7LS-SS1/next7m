@@ -30,7 +30,7 @@ export default async function EmailsPage() {
             <tr>
               <th className="p-3">อีเมล</th>
               <th className="p-3">ผู้ให้บริการ</th>
-              <th className="p-3">ทีม</th>
+              <th className="p-3">หมายเหตุ</th>
               <th className="p-3 w-40">จัดการ</th>
             </tr>
           </thead>
@@ -50,7 +50,7 @@ export default async function EmailsPage() {
                     </Link>
                     <form method="post" action="/managements/emails/api/delete">
                       <input type="hidden" name="id" value={m.id} />
-                      <ConfirmSubmit confirmText={`ลบทีม "${m.name}" ?`}>
+                      <ConfirmSubmit confirmText={`ลบอีเมล "${m.address}" ?`}>
                         ลบ
                       </ConfirmSubmit>
                     </form>
@@ -60,7 +60,7 @@ export default async function EmailsPage() {
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={3} className="p-6 text-center text-white/60">
+                <td colSpan={4} className="p-6 text-center text-white/60">
                   ยังไม่มีข้อมูล
                 </td>
               </tr>

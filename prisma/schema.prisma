@@ -9,9 +9,8 @@ generator client {
 }
 
 datasource db {
-  provider          = "postgresql"
-  url               = env("DATABASE_URL") // ✅ ใช้ DATABASE_URL
-  shadowDatabaseUrl = env("SHADOW_DATABASE_URL") // ✅ ถ้ามี shadow
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 /**
@@ -132,24 +131,24 @@ model Program {
 // --- Plugin ---
 
 model Plugin {
-  id            String   @id @default(cuid())
-  name          String   @db.VarChar(200)
-  version       String?  @db.VarChar(50)
-  vendor        String?  @db.VarChar(120)
-  pluginType    String?  @db.VarChar(50)
-  category      String   @default("Misc.") @db.VarChar(50)
+  id         String  @id @default(cuid())
+  name       String  @db.VarChar(200)
+  version    String? @db.VarChar(50)
+  vendor     String? @db.VarChar(120)
+  pluginType String? @db.VarChar(50)
+  category   String  @default("Misc.") @db.VarChar(50)
 
-  content       String?  @db.Text
-  iconUrl       String?  @db.Text
-  fileUrl       String?  @db.Text
+  content String? @db.Text
+  iconUrl String? @db.Text
+  fileUrl String? @db.Text
 
-  recommended   Boolean  @default(false)
-  featured      Boolean  @default(false)
+  recommended Boolean @default(false)
+  featured    Boolean @default(false)
 
-  slug          String?  @unique @db.VarChar(120)
+  slug String? @unique @db.VarChar(120)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([name, version])
   @@index([category])

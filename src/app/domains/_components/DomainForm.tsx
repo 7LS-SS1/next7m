@@ -41,7 +41,7 @@ export default function DomainForm({
   action = "/domains/api/create",
 }: Props) {
   // สถานะที่ต้องใช้ควบคุม UI
-  const [redirect, setRedirect] = useState(defaults?.redirect ?? "false");
+  const [redirect, setRedirect] = useState<"true" | "false">(defaults?.redirect ?? "false");
 
   // สร้าง option ที่อ่านง่ายใน UI
   const emailOptions = useMemo(
@@ -216,7 +216,7 @@ export default function DomainForm({
             <select
               name="redirect"
               value={redirect}
-              onChange={(e) => setRedirect(e.target.value)}
+              onChange={(e) => setRedirect((e.target as HTMLSelectElement).value as "true" | "false")}
               className="input"
             >
               <option value="false">No</option>

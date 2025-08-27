@@ -5,8 +5,11 @@ import { notFound } from "next/navigation";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function EditProviderPage({ params }: { params: { id: string } }) {
-  const row = await prisma.hostProvider.findUnique({ where: { id: params.id } });
+type PageProps = { params: Promise<{ id: string }> };
+
+export default async function EditProviderPage({ params }: PageProps) {
+  const { id } = await params;
+  const row = await prisma.hostProvider.findUnique({ where: { id } });
   if (!row) notFound();
 
   return (

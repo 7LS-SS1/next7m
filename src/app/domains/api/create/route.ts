@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { Prisma, DomainStatus } from "@prisma/client";
 
 const LIST = "/domains";
 const trim = (v: unknown) => (v == null ? undefined : v.toString().trim());
@@ -13,7 +14,9 @@ const empty = (v: unknown) => {
 const Schema = z.object({
   name: z.preprocess(trim, z.string().min(2).max(255)),
   note: z.preprocess(empty, z.string().max(500).optional()),
-  status: z.preprocess(trim, z.enum(["ACTIVE", "INACTIVE"]).optional()),
+  // รับเฉพาะ ACTIVE/INACTIVE (ถ้าไม่ส่งจะปล่อยให้ใช้ค่าเริ่มต้นที่ DB)
+  status: z
+    .preprocess(trim, z.enum(["ACTIVE", "INACTIVE"]).optional()),
 });
 
 export async function POST(req: Request) {
@@ -28,10 +31,12 @@ export async function POST(req: Request) {
       return NextResponse.redirect(new URL(`${LIST}/new?toast=invalid&detail=ข้อมูลไม่ถูกต้อง`, req.url), { status: 303 });
     }
 
-    // สร้าง payload ตามคีย์ที่มีจริง
-    const data: Record<string, any> = { name: p.data.name };
-    if (p.data.note) data.note = p.data.note;
-    if (p.data.status) data.status = p.data.status;
+    // สร้าง payload แบบ type-safe ให้ตรงกับ Prisma.DomainCreateInput
+    const data: Prisma.DomainCreateInput = {
+      name: p.data.name,
+      ...(p.data.note ? { note: p.data.note } : {}),
+      ...(p.data.status ? { status: p.data.status as DomainStatus } : {}),
+    };
 
     // กันชื่อซ้ำถ้าตั้ง unique ที่ DB
     try {

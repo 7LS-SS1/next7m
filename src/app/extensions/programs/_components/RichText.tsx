@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
@@ -18,23 +18,29 @@ import Placeholder from "@tiptap/extension-placeholder";
 type Props = {
   /** Optional form field name. If provided, a hidden input will be rendered and kept in sync. */
   name?: string;
-  /** Initial/current HTML value. */
+  /** Controlled HTML value (if you want to fully control from parent). */
   value?: string; // HTML
+  /** Initial HTML used on first mount (alias for older code wanting defaultValue). */
+  defaultValue?: string; // HTML
   /** Callback on change (receives HTML). */
   onChange?: (html: string) => void;
   placeholder?: string;
   className?: string;
+  minHeight?: number; // px
 };
 
 export default function RichText({
   name,
-  value = "",
+  value,
+  defaultValue,
   onChange,
   placeholder,
   className,
+  minHeight = 200,
 }: Props) {
-  // Internal mirror state so we can both control TipTap and keep a hidden input in sync
-  const [val, setVal] = useState<string>(value || "");
+  // Determine initial HTML only once to avoid hydration mismatch
+  const initialHTMLRef = useRef<string>(defaultValue ?? value ?? "");
+  const [val, setVal] = useState<string>(initialHTMLRef.current);
 
   const editor = useEditor({
     extensions: [
@@ -54,7 +60,8 @@ export default function RichText({
         placeholder: placeholder || "เขียนรายละเอียด/คำอธิบายได้ที่นี่…",
       }),
     ],
-    content: val,
+    content: "",
+    immediatelyRender: false,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       setVal(html);
@@ -68,11 +75,16 @@ export default function RichText({
     },
   });
 
-  // Keep editor/content in sync when `value` prop changes from the outside
   useEffect(() => {
     if (!editor) return;
-    if (value != null && value !== val) {
-      editor.commands.setContent(value, false);
+    // set initial content once to avoid hydration mismatch
+    editor.commands.setContent(initialHTMLRef.current, { emitUpdate: false });
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+    if (typeof value === "string" && value !== val) {
+      editor.commands.setContent(value, { emitUpdate: false });
       setVal(value);
     }
   }, [value, editor]);
@@ -160,11 +172,18 @@ export default function RichText({
 
       {/* Editor */}
       <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-        <EditorContent editor={editor} />
+        <EditorContent editor={editor} data-placeholder={placeholder || "เขียนรายละเอียด/คำอธิบายได้ที่นี่…"} />
       </div>
 
       {/* Hidden input for form submission when `name` provided */}
       {name ? <input type="hidden" name={name} value={val} /> : null}
+
+      <style jsx>{`
+        .tiptap:empty:before {
+          content: attr(data-placeholder);
+          color: rgba(255, 255, 255, 0.45);
+        }
+      `}</style>
     </div>
   );
 }
