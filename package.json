@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write .",
-    "postinstall": "prisma generate",
+    "preinstall": "corepack enable && corepack prepare pnpm@10.0.0 --activate",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
