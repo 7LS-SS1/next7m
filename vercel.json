@@ -1,4 +1,4 @@
 {
-  "installCommand": "pnpm install --frozen-lockfile",
+  "installCommand": "pnpm install --frozen-lockfile --reporter=append-only",
   "buildCommand": "pnpm build"
 }
