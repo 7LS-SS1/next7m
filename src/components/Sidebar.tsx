@@ -11,27 +11,46 @@ import Logo from "@/assets/icons/UFABET7M-MINI.png";
 // =========================
 // Types & Nav structure
 // =========================
- type NavItem = {
+type NavItem = {
   title: string;
   emoji: string;
-  href?: string;           // leaf item has href
-  children?: NavItem[];    // section item has children
+  href?: string; // leaf item has href
+  children?: NavItem[]; // section item has children
 };
 
 const NAV: NavItem[] = [
   { href: "/dashboard", title: "Dashboard", emoji: "🏠" },
-  { href: "/domain", title: "Domain", emoji: "🏆" },
+  { href: "/domains", title: "Domain", emoji: "🏆" },
   {
     title: "HOST",
     emoji: "🚀",
     children: [
-      { href: "/host", title: "Hosts", emoji: "📋" },
-      { href: "/host-providers", title: "Host Providers", emoji: "🧩" },
-      { href: "/host-types", title: "Host Types", emoji: "💠" },
-      { href: "/host/groups", title: "Host Groups", emoji: "🗂️" },
+      { href: "/hosts", title: "Overview", emoji: "📋" },
+      { href: "/hosts/providers", title: "Host Providers", emoji: "🧩" },
+      { href: "/hosts/types", title: "Host Types", emoji: "💠" },
     ],
   },
-  { href: "/management", title: "Management", emoji: "👥" },
+  {
+    title: "Management",
+    emoji: "👥",
+    children: [
+      { href: "/managements", title: "Overview", emoji: "📊" },
+      { href: "/managements/teams", title: "Teams", emoji: "👤" },
+      { href: "/managements/emails", title: "Emails", emoji: "👤" },
+      { href: "/managements/projects", title: "Projects", emoji: "📁" },
+    ],
+  },
+  {
+    title: "Program/Plugin",
+    emoji: "🧩",
+    children: [
+      { href: "/extensions", title: "Overview", emoji: "📊" },
+      { href: "/extensions/programs", title: "Program", emoji: "💻" },
+      { href: "/extensions/plugins", title: "Plugin", emoji: "🔌" },
+    ],
+  },
+
+  // Setting
   { href: "/setting", title: "Setting", emoji: "⚙️" },
 ];
 
@@ -47,7 +66,11 @@ export default function Sidebar() {
   // -------------------------
   // Helpers
   // -------------------------
-  const isActive = (href?: string) => (href ? pathname.startsWith(href) : false);
+  const norm = (p: string) => (p.endsWith("/") ? p.slice(0, -1) : p);
+  const isActive = (href?: string) =>
+    href
+      ? norm(pathname) === norm(href) || pathname.startsWith(href + "/")
+      : false;
   const sectionActive = (item: NavItem) =>
     !!item.children?.some((c) => isActive(c.href)) || isActive(item.href);
 
@@ -62,16 +85,20 @@ export default function Sidebar() {
 
   // โหลดสถานะ + ฟังปุ่ม toggle กลางจาก Topbar
   useEffect(() => {
-    const saved = localStorage.getItem("sb_expanded");
-    if (saved != null) setExpanded(saved === "1");
+    try {
+      const saved = localStorage.getItem("sb_expanded");
+      if (saved != null) setExpanded(saved === "1");
 
-    // restore section open states
-    NAV.forEach((it) => {
-      if (it.children?.length) {
-        const v = localStorage.getItem("sb_open_" + it.title);
-        setOpen((p) => ({ ...p, [it.title]: v ? v === "1" : true }));
+      // restore section open states (set ครั้งเดียว)
+      const initialOpen: Record<string, boolean> = {};
+      for (const it of NAV) {
+        if (it.children?.length) {
+          const v = localStorage.getItem("sb_open_" + it.title);
+          initialOpen[it.title] = v ? v === "1" : true;
+        }
       }
-    });
+      setOpen(initialOpen);
+    } catch {}
 
     const onToggle = () => {
       if (window.matchMedia("(max-width:1023px)").matches) {
@@ -79,7 +106,9 @@ export default function Sidebar() {
       } else {
         setExpanded((v) => {
           const nv = !v;
-          localStorage.setItem("sb_expanded", nv ? "1" : "0");
+          try {
+            localStorage.setItem("sb_expanded", nv ? "1" : "0");
+          } catch {}
           return nv;
         });
       }
@@ -93,7 +122,10 @@ export default function Sidebar() {
     setMobileOpen(false);
   }, [pathname]);
 
-  const width = useMemo(() => (expanded ? W_EXPANDED : W_COLLAPSED), [expanded]);
+  const width = useMemo(
+    () => (expanded ? W_EXPANDED : W_COLLAPSED),
+    [expanded]
+  );
 
   return (
     <>
@@ -117,7 +149,7 @@ export default function Sidebar() {
         style={{ width }}
       >
         {/* แถบบน */}
-        <div className="hidden lg:flex items-center gap-3 px-3 pt-3 pb-2">
+        <div className="hidden lg:flex items-center gap-3 px-1 pt-1 pb-2">
           <button
             onClick={() =>
               setExpanded((v) => {
@@ -136,7 +168,7 @@ export default function Sidebar() {
         </div>
 
         {/* เมนู */}
-        <nav className="mt-1 px-2">
+        <nav className="mt-1 px-2" role="navigation" aria-label="Sidebar">
           {NAV.map((it) => {
             const hasChildren = !!it.children?.length;
             const active = sectionActive(it);
@@ -146,7 +178,7 @@ export default function Sidebar() {
                 <Link
                   key={it.title}
                   href={it.href || "#"}
-                  className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 mb-1 transition ${
+                  className={`group flex items-center gap-3 rounded-xl px-0.5 py-0.5 mb-1 transition ${
                     active
                       ? "bg-white/[0.08] border border-white/10"
                       : "hover:bg-white/[0.06] border border-transparent"
@@ -155,7 +187,7 @@ export default function Sidebar() {
                   <span className="grid size-9 place-items-center rounded-xl bg-white/10 text-lg">
                     {it.emoji}
                   </span>
-                  {expanded && <span className="font-medium">{it.title}</span>}
+                  {expanded && <span className="font-small">{it.title}</span>}
                 </Link>
               );
             }
@@ -169,7 +201,7 @@ export default function Sidebar() {
                 <button
                   type="button"
                   onClick={() => expanded && toggleSection(it.title)}
-                  className={`w-full flex items-center justify-between rounded-xl px-3 py-2.5 mb-1 transition ${
+                  className={`w-full flex items-center justify-between rounded-xl px-0.5 py-0.5 mb-1 transition ${
                     active
                       ? "bg-white/[0.08] border border-white/10"
                       : "hover:bg-white/[0.06] border border-transparent"
@@ -180,7 +212,9 @@ export default function Sidebar() {
                     <span className="grid size-9 place-items-center rounded-xl bg-white/10 text-lg">
                       {it.emoji}
                     </span>
-                    {expanded && <span className="font-medium">{it.title}</span>}
+                    {expanded && (
+                      <span className="font-medium">{it.title}</span>
+                    )}
                   </div>
                   {expanded && (
                     <svg
@@ -188,7 +222,13 @@ export default function Sidebar() {
                       className={`h-4 w-4 transition-transform ${openNow ? "rotate-90" : "rotate-0"}`}
                       aria-hidden
                     >
-                      <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <path
+                        d="M9 6l6 6-6 6"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
                     </svg>
                   )}
                 </button>
@@ -196,13 +236,13 @@ export default function Sidebar() {
                 {/* Children: expanded mode → แสดงใต้หัวข้อ */}
                 {expanded && openNow && (
                   <div className="ml-[52px] mb-1 grid gap-1">
-                    {it.children!.map((c) => {
+                    {(it.children ?? []).map((c) => {
                       const childActive = isActive(c.href);
                       return (
                         <Link
                           key={c.href}
                           href={c.href!}
-                          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                          className={`flex items-center gap-2 rounded-lg px-0.5 py-0.5 text-sm ${
                             childActive
                               ? "bg-white/[0.10] border border-white/10"
                               : "hover:bg-white/[0.08] border border-transparent"
@@ -218,19 +258,21 @@ export default function Sidebar() {
 
                 {/* Children: collapsed mode → flyout */}
                 {!expanded && (
-                  <div
-                    className="pointer-events-none absolute left-full top-0 ml-2 w-56 opacity-0 transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto"
-                  >
+                  <div className="pointer-events-none absolute left-full top-0 ml-2 w-56 opacity-0 transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto">
                     <div className="rounded-xl border border-white/10 bg-[rgb(var(--card))]/95 backdrop-blur p-2 shadow-xl">
-                      <div className="px-2 pb-1 text-xs text-white/60">{it.title}</div>
-                      {it.children!.map((c) => {
+                      <div className="px-2 pb-1 text-xs text-white/60">
+                        {it.title}
+                      </div>
+                      {(it.children ?? []).map((c) => {
                         const childActive = isActive(c.href);
                         return (
                           <Link
                             key={c.href}
                             href={c.href!}
                             className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${
-                              childActive ? "bg-white/[0.12]" : "hover:bg-white/[0.08]"
+                              childActive
+                                ? "bg-white/[0.12]"
+                                : "hover:bg-white/[0.08]"
                             }`}
                           >
                             <span className="opacity-80">{c.emoji}</span>

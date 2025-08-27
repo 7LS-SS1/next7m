@@ -54,62 +54,107 @@ model Domain {
   updatedAt DateTime     @updatedAt
 }
 
+// --- Hosts ---
+
 model HostProvider {
   id        String   @id @default(cuid())
   name      String   @unique
   note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  hosts Host[]
 }
 
-model HostGroup {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  note      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  hosts Host[]
-}
-
-enum HostStatus {
-  ACTIVE
-  INACTIVE
-}
-
-// HostType ---
 model HostType {
   id        String   @id @default(cuid())
   name      String   @unique
   note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  hosts     Host[]
 }
 
-// --- Host ---
-model Host {
-  id     String     @id @default(cuid())
-  name   String     @unique
-  ip     String?
-  note   String?
-  status HostStatus @default(ACTIVE)
+// --- End Hosts ---
 
-  providerId String?
-  provider   HostProvider? @relation(fields: [providerId], references: [id])
+// --- Menagements ---
 
-  groupId String?
-  group   HostGroup? @relation(fields: [groupId], references: [id])
-
-  typeId String?
-  type   HostType? @relation(fields: [typeId], references: [id])
-
+model Project {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@index([providerId])
-  @@index([groupId])
-  @@index([typeId])
 }
+
+model Team {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmailAccount {
+  id        String   @id @default(cuid())
+  address   String   @unique
+  provider  String
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// --- End Menagements ---
+
+// --- Program ---
+
+model Program {
+  id            String   @id @default(cuid())
+  name          String   @db.VarChar(200)
+  version       String?  @db.VarChar(50)
+  vendor        String?  @db.VarChar(120)
+  category      String   @db.VarChar(50)
+  content       String?  @db.Text
+  iconUrl       String?  @db.Text
+  fileUrl       String?  @db.Text
+  recommended   Boolean  @default(false)
+  isRecommended Boolean  @default(false)
+  featured      Boolean  @default(false)
+  slug          String?  @unique @db.VarChar(120)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([name, version])
+  @@index([category])
+  @@index([vendor])
+  @@index([updatedAt])
+}
+
+// --- End Program ---
+
+// --- Plugin ---
+
+model Plugin {
+  id            String   @id @default(cuid())
+  name          String   @db.VarChar(200)
+  version       String?  @db.VarChar(50)
+  vendor        String?  @db.VarChar(120)
+  pluginType    String?  @db.VarChar(50)
+  category      String   @default("Misc.") @db.VarChar(50)
+
+  content       String?  @db.Text
+  iconUrl       String?  @db.Text
+  fileUrl       String?  @db.Text
+
+  recommended   Boolean  @default(false)
+  featured      Boolean  @default(false)
+
+  slug          String?  @unique @db.VarChar(120)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([name, version])
+  @@index([category])
+  @@index([vendor])
+  @@index([updatedAt])
+}
+
+// --- End Plugin ---

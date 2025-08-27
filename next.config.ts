@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   experimental: {
     // เปิด serverActions ใช้กับฟอร์มด้านบน
-    serverActions: { bodySizeLimit: '2mb' },
+    serverActions: { bodySizeLimit: '2.6gb' },
   },
   eslint: {
     // กัน build พังเพราะ ESLint rushstack/patch

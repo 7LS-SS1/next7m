@@ -4,6 +4,8 @@ import "./globals.css";
 import { Prompt } from "next/font/google";
 import AppShell from "@/components/AppShell";
 import ThemeHydrator from "@/components/ThemeHydrator";
+import ToasterProvider from "@/components/ToasterProvider";
+import ToastMount from "@/components/ToastMount";
 
 const prompt = Prompt({
   subsets: ["thai", "latin"],
@@ -32,6 +34,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       >
         <ThemeHydrator />
         <AppShell>{children}</AppShell>
+        {/* Mount Toaster once for the whole app */}
+        <ToasterProvider />
+        {/* Global toast trigger reads ?toast= from URL and fires notifications */}
+        <ToastMount />
       </body>
     </html>
   );

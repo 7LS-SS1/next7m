@@ -7,12 +7,36 @@
   --muted: 139 139 144;
   --accent-from: 255 215 0; /* ทองเข้ม */
   --accent-to: 255 223 128; /* ทองอ่อน */
+  --primary-text: #fde68a;
 }
 
-
-html, body {
+html,
+body {
   background: rgb(var(--bg));
   color: white;
+  font-size: 14px;
+}
+
+article a {
+  color: var(--primary-text);
+  font-weight: 600;
+}
+
+nav span {
+  font-size: 15px;
+}
+
+.truncate {
+  font-size: 14px;
+}
+
+.input {
+  background-color: color-mix(in oklab, var(--color-white) 20%, transparent);
+  padding: 2px 8px;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  transition: background-color 0.2s, border-color 0.2s;
 }
 
 .container-page {
@@ -21,7 +45,9 @@ html, body {
 
 /* สไตล์กล่อง */
 /* ตัวอย่าง utility */
-.card { @apply rounded-xl border border-white/10 bg-[rgb(var(--card))]/70 backdrop-blur; }
+.card {
+  @apply rounded-xl border border-white/10 bg-[rgb(var(--card))]/70 backdrop-blur;
+}
 
 /* แนวเลื่อนแบบภาพตัวอย่าง */
 .scroll-row {
@@ -37,9 +63,59 @@ html, body {
 }
 
 /* ปุ่มรอง */
-.btn-secondary { @apply rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 text-black hover:brightness-95; }
+.btn-secondary {
+  @apply rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 text-black hover:brightness-95;
+}
 
 /* แท็กเล็ก */
 .badge {
   @apply inline-flex items-center rounded-lg bg-white/10 px-2 py-1 text-xs text-white/80;
 }
+
+/* --- TIPTAP base --- */
+.tiptap p {
+  margin: 0.5rem 0;
+}
+.tiptap ul {
+  list-style: disc;
+  margin-left: 1.25rem;
+}
+.tiptap ol {
+  list-style: decimal;
+  margin-left: 1.25rem;
+}
+.tiptap h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 1rem 0 0.5rem;
+}
+.tiptap h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0.75rem 0 0.5rem;
+}
+.tiptap code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.1rem 0.25rem;
+  border-radius: 0.375rem;
+}
+.tiptap pre {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  overflow: auto;
+}
+.tiptap a {
+  color: #fde68a;
+  text-decoration: underline;
+}
+
+/* Program badges */
+.badge-soft {
+  @apply rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-xs;
+}
+
+/* บทความต้องมี bullet/หมายเลขเสมอ */
+article.prose ul { list-style: disc; padding-left: 1.5rem; margin: .5rem 0; }
+article.prose ol { list-style: decimal; padding-left: 1.5rem; margin: .5rem 0; }
+article.prose li::marker { color: rgba(255,255,255,.6); }
