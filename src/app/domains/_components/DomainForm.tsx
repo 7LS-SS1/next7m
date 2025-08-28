@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 type Option = { id: string; name?: string; address?: string };
 type Props = {
@@ -25,6 +25,8 @@ type Props = {
     status: "200" | "300" | "301" | "400" | "404" | "500";
     redirect: "true" | "false";
     redirectUrl: string;
+    registeredAt: string;
+    expiresAt: string;
   }>;
   /**
    * เปลี่ยนปลายทางได้เวลานำไปใช้หน้าแก้ไข
@@ -42,6 +44,45 @@ export default function DomainForm({
 }: Props) {
   // สถานะที่ต้องใช้ควบคุม UI
   const [redirect, setRedirect] = useState<"true" | "false">(defaults?.redirect ?? "false");
+
+  // วันที่จดและวันหมดอายุ
+  // เก็บรูปแบบเป็น YYYY-MM-DD เพื่อให้ส่งผ่าน form ได้ตรงไปตรงมา
+  const [registeredAt, setRegisteredAt] = useState<string>(() => {
+    // รองรับทั้งค่าเริ่มต้นจาก defaults หรือเปล่า
+    return defaults?.registeredAt ?? "";
+  });
+  const [expiresAt, setExpiresAt] = useState<string>(() => {
+    return defaults?.expiresAt ?? "";
+  });
+
+  // helper: เพิ่ม 1 ปีจากวันที่รูปแบบ YYYY-MM-DD
+  function calcPlusOneYear(ymd: string): string {
+    if (!ymd) return "";
+    const [y, m, d] = ymd.split("-").map((v) => parseInt(v, 10));
+    if (!y || !m || !d) return "";
+    const base = new Date(Date.UTC(y, m - 1, d));
+    // เพิ่ม 1 ปีแบบคงวัน/เดือน ถ้าข้าม (เช่น 29 ก.พ.) ให้ถอยมาวันสุดท้ายของเดือน
+    const targetYear = y + 1;
+    const target = new Date(Date.UTC(targetYear, m - 1, 1));
+    // วันสูงสุดของเดือนปลายทาง
+    const lastDay = new Date(Date.UTC(targetYear, m, 0)).getUTCDate();
+    const day = Math.min(d, lastDay);
+    target.setUTCDate(day);
+    // สร้างเป็น YYYY-MM-DD
+    const yy = target.getUTCFullYear();
+    const mm = String(target.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(target.getUTCDate()).padStart(2, "0");
+    return `${yy}-${mm}-${dd}`;
+  }
+
+  // คำนวนวันหมดอายุอัตโนมัติเมื่อวันที่จดเปลี่ยน
+  useEffect(() => {
+    if (registeredAt) {
+      setExpiresAt(calcPlusOneYear(registeredAt));
+    } else {
+      setExpiresAt("");
+    }
+  }, [registeredAt]);
 
   // สร้าง option ที่อ่านง่ายใน UI
   const emailOptions = useMemo(
@@ -116,6 +157,29 @@ export default function DomainForm({
               required
               autoComplete="off"
               inputMode="url"
+            />
+          </Field>
+
+          <Field label="วันที่จด (Registration Date)" required hint="กำหนดวันที่เริ่มต้นถือครองโดเมน">
+            <input
+              type="date"
+              name="registeredAt"
+              value={registeredAt}
+              onChange={(e) => setRegisteredAt((e.target as HTMLInputElement).value)}
+              className="input"
+              required
+            />
+          </Field>
+
+          <Field label="วันหมดอายุ (Expires At)" required hint="คำนวณอัตโนมัติ +1 ปีจากวันที่จด">
+            <input
+              type="date"
+              name="expiresAt"
+              value={expiresAt}
+              // readOnly
+              disabled
+              className="input bg-white/5"
+              required
             />
           </Field>
         </div>
