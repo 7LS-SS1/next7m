@@ -78,13 +78,13 @@ export default function RichText({
   useEffect(() => {
     if (!editor) return;
     // set initial content once to avoid hydration mismatch
-    editor.commands.setContent(initialHTMLRef.current, { emitUpdate: false });
+    editor.commands.setContent(initialHTMLRef.current, false);
   }, [editor]);
 
   useEffect(() => {
     if (!editor) return;
     if (typeof value === "string" && value !== val) {
-      editor.commands.setContent(value, { emitUpdate: false });
+      editor.commands.setContent(value, false);
       setVal(value);
     }
   }, [value, editor]);
