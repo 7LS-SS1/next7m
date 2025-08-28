@@ -44,11 +44,9 @@ model Domain {
   note      String?
   status    DomainStatus @default(PENDING)
 
-  // วันจดและวันหมดอายุ
   registeredAt DateTime  @default(now()) // วันที่จด
   expiresAt    DateTime  @default(dbgenerated("now() + interval '1 year'")) // วันหมดอายุ (registeredAt + 1 ปี)
 
-  // ความสัมพันธ์
   hostId       String?
   host         HostProvider? @relation(fields: [hostId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
@@ -70,7 +68,7 @@ model Domain {
   wordpressInstall Boolean @default(false)
   activeStatus     Boolean @default(true)
 
-  statusCode   Int     @default(200) // เช่น 200,301,404
+  statusCode   Int     @default(200)
   redirect     Boolean @default(false)
 
   createdAt    DateTime @default(now())

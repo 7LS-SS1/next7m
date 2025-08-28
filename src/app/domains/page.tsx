@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
+import { Avatar, Chip } from "@nextui-org/react";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -25,8 +26,18 @@ export default async function DomainsPage({ searchParams }: PageProps) {
 
   const rows = await prisma.domain.findMany({
     where,
-    orderBy: { createdAt: "desc" },
-    select: { id: true, name: true, note: true, status: true, createdAt: true },
+  orderBy: { createdAt: "desc" },
+  select: {
+    id: true,
+    name: true,
+    note: true,
+    status: true,
+    // statusCode: true, // << เพิ่มบรรทัดนี้
+    createdAt: true,
+    // TODO: team/host ถ้าจะโชว์ชื่อให้ select relation มาเลย
+    // team: { select: { name: true } },
+    // host: { select: { name: true } },
+  },
   });
 
   return (
@@ -59,6 +70,8 @@ export default async function DomainsPage({ searchParams }: PageProps) {
             <tr>
               <th className="p-3">โดเมน</th>
               <th className="p-3">สถานะ</th>
+              <th className="p-3">ทีม</th>
+              <th className="p-3">Host</th>
               <th className="p-3">หมายเหตุ</th>
               <th className="p-3 w-40">จัดการ</th>
             </tr>
@@ -66,10 +79,50 @@ export default async function DomainsPage({ searchParams }: PageProps) {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-white/10">
+                {/* โดเมน */}
                 <td className="p-3">{r.name}</td>
-                <td className="p-3">{r.status ?? "-"}</td>
-                <td className="p-3">{r.note ?? "-"}</td>
+
+                {/* สถานะ + Status code (ตามตัวอย่าง) */}
                 <td className="p-3">
+                  <div className="flex gap-2 flex-col">
+                    <div className="flex gap-2 items-center">
+                      <label className="font-medium">สถานะ :</label>
+                      <Chip
+                        size="sm"
+                        variant="flat"
+                        color={
+                          r.status === "ACTIVE"
+                            ? "success"
+                            : r.status === "PENDING"
+                            ? "warning"
+                            : r.status === "INACTIVE"
+                            ? "default"
+                            : "default"
+                        }
+                      >
+                        {r.status ?? "-"}
+                      </Chip>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <label className="font-medium">Status :</label>
+                      <Chip size="sm" variant="flat">
+                        {(r as any)?.statusCode ?? "-"}
+                      </Chip>
+                    </div>
+                  </div>
+                </td>
+
+                {/* ทีม (ยังไม่มีข้อมูลใน select) */}
+                <td className="p-3">-</td>
+
+                {/* Host (ยังไม่มีข้อมูลใน select) */}
+                <td className="p-3">-</td>
+
+                {/* หมายเหตุ */}
+                <td className="p-3">{r.note ?? "-"}</td>
+
+                {/* จัดการ */}
+                <td className="p-3 w-40">
                   <div className="flex gap-2 justify-end">
                     <Link
                       href={`/domains/${r.id}/edit`}
@@ -87,12 +140,94 @@ export default async function DomainsPage({ searchParams }: PageProps) {
                 </td>
               </tr>
             ))}
+
+              <tr key="{r.id}" className="border-t border-white/10">
+                <td className="p-3">domain-test.com</td>
+                <td className="p-3">
+                  <div className="flex gap-2 flex-col">
+                    <div className="flex gap-2">
+                      <label className="font-medium">
+                        สถานะ :
+                      </label>
+                      <span className="inline-block rounded-full bg-green-600/20 px-2 py-0.5 text-xs font-medium text-green-400">
+                        ACTIVE
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <label className="font-medium">
+                        Status :
+                      </label>
+                      <span className="inline-block rounded-full bg-green-600/20 px-2 py-0.5 text-xs font-medium text-green-400">
+                        200
+                      </span>
+                    </div>
+                  </div>
+                </td>
+                <td className="p-3">
+                  <div className="flex gap-2 flex-col">
+                    <div className="flex gap-2">
+                      <label className="font-medium">
+                        ทีมรับผิดชอบ :
+                      </label>
+                      <span className="inline-block rounded-full bg-cyan-600/20 px-2 py-0.5 text-xs font-medium text-cyan-400">
+                        Center X
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <label className="font-medium">
+                        Type :
+                      </label>
+                      <span className="inline-block rounded-full bg-gray-600/20 px-2 py-0.5 text-xs font-medium text-gray-200">
+                        PBN
+                      </span>
+                    </div>
+                  </div>
+                </td>
+                <td className="p-3">
+                  <div className="flex gap-2 flex-col">
+                    <div className="flex gap-2">
+                      <label className="font-medium">
+                        Host :
+                      </label>
+                      <span className="inline-block rounded-full bg-gray-600/20 px-2 py-0.5 text-xs font-medium text-gray-200">
+                        AWS
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <label className="font-medium">
+                        Type :
+                      </label>
+                      <span className="inline-block rounded-full bg-gray-600/20 px-2 py-0.5 text-xs font-medium text-gray-200">
+                        7M PBN 2
+                      </span>
+                    </div>
+                  </div>
+                  </td>
+                <td className="p-3">โน๊ต</td>
+                <td className="p-3">
+                  <div className="flex gap-2 justify-end">
+                    <Link
+                      href={`/domains/#/edit`}
+                      className="rounded-lg border border-white/10 px-3 py-1.5 hover:bg-white/10"
+                    >
+                      แก้ไข
+                    </Link>
+                    <form method="post" action="/domains/api/delete">
+                      <input type="hidden" name="id" value="1" />
+                    <ConfirmSubmit confirmText={`ลบโดเมน "domain-test.com" ?`}>
+                        ลบ
+                      </ConfirmSubmit>
+                    </form>
+                  </div>
+                </td>
+              </tr>
             {rows.length === 0 && (
               <tr>
                 <td colSpan={4} className="p-6 text-center text-white/60">
                   ไม่พบข้อมูล
                 </td>
               </tr>
+
             )}
           </tbody>
         </table>

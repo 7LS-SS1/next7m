@@ -152,7 +152,7 @@ export default function DomainForm({
             <input
               name="name"
               placeholder="example.com"
-              defaultValue={defaults?.domainName ?? ""}
+              defaultValue={defaults?.name ?? ""}
               className="input"
               required
               autoComplete="off"

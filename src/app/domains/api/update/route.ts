@@ -15,7 +15,7 @@ const trim = (v: unknown) => (v == null ? undefined : v.toString().trim());
  * - ถ้าส่งค่าว่าง ""    -> ต้องการ “ล้างค่า”   => จะ map เป็น null
  */
 const toNullOrString = (v: unknown) => {
-  if (v === null) return undefined; // ไม่มีฟิลด์นี้ในฟอร์ม -> ไม่อัปเดต
+  if (v == null) return undefined; // null หรือ undefined -> ไม่อัปเดต
   const s = v.toString().trim();
   return s === "" ? null : s; // "" => null (ล้างค่า)
 };
@@ -30,7 +30,7 @@ const toDate = (v: unknown) => {
 };
 
 const toBool = (v: unknown) => {
-  if (v === null) return undefined; // ไม่อัปเดต
+  if (v == null) return undefined; // ไม่อัปเดต (null/undefined)
   const s = v.toString().trim().toLowerCase();
   if (["true", "1", "on", "yes"].includes(s)) return true;
   if (["false", "0", "off", "no", ""].includes(s)) return false;
@@ -38,7 +38,7 @@ const toBool = (v: unknown) => {
 };
 
 const toInt = (v: unknown) => {
-  if (v === null) return undefined;
+  if (v == null) return undefined; // null/undefined -> ไม่อัปเดต
   const s = v.toString().trim();
   if (!s) return undefined;
   const n = Number(s);

@@ -107,7 +107,10 @@ export async function POST(req: Request) {
         );
       }
       return NextResponse.redirect(
-        new URL(`${LIST}/new?toast=invalid&detail=${encodeURIComponent(`${field}: ${msg}`)}`, req.url),
+        new URL(
+          `${LIST}/new?toast=invalid&detail=${encodeURIComponent(`${String(field)}: ${String(msg)}`)}`,
+          req.url
+        ),
         { status: 303 }
       );
     }

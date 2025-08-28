@@ -21,6 +21,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@nextui-org/react": "^2.6.11",
     "@prisma/client": "^6.15.0",
     "@tiptap/core": "^2.7.4",
     "@tiptap/extension-image": "^2.7.4",
@@ -31,9 +32,9 @@
     "@tiptap/starter-kit": "^2.7.4",
     "bcryptjs": "^3.0.2",
     "lucide-react": "^0.542.0",
-    "next": "^15.5.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "next": "^15.5.2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
     "sonner": "^2.0.7",
     "zod": "^4.0.17"
   },
@@ -46,6 +47,7 @@
     "@types/node": "^20.19.11",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19",
+    "@types/uuid": "^10.0.0",
     "eslint": "^9",
     "eslint-config-next": "15.5.0",
     "eslint-config-prettier": "^10.1.8",
