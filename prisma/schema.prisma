@@ -13,9 +13,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/**
- * -- Models อื่นๆ ที่ใช้ใน Project --
- */
+//* -- Models อื่นๆ ที่ใช้ใน Project -- */
 
 model User {
   id        String   @id @default(cuid())
@@ -38,22 +36,65 @@ enum Role {
   STAFF
 }
 
+// --- Domains ---
+
+model Domain {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  note      String?
+  status    DomainStatus @default(PENDING)
+
+  // วันจดและวันหมดอายุ
+  registeredAt DateTime  @default(now()) // วันที่จด
+  expiresAt    DateTime  @default(dbgenerated("now() + interval '1 year'")) // วันหมดอายุ (registeredAt + 1 ปี)
+
+  // ความสัมพันธ์
+  hostId       String?
+  host         HostProvider? @relation(fields: [hostId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  hostTypeId   String?
+  hostType     HostType? @relation(fields: [hostTypeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  domainMailId String?
+  domainMail   EmailAccount? @relation("DomainMail", fields: [domainMailId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  hostMailId   String?
+  hostMail     EmailAccount? @relation("HostMail", fields: [hostMailId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  cloudflareMailId String?
+  cloudflareMail   EmailAccount? @relation("CloudflareMail", fields: [cloudflareMailId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  teamId       String?
+  team         Team? @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  wordpressInstall Boolean @default(false)
+  activeStatus     Boolean @default(true)
+
+  statusCode   Int     @default(200) // เช่น 200,301,404
+  redirect     Boolean @default(false)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([name])
+  @@index([status])
+  @@index([registeredAt])
+  @@index([expiresAt])
+  @@index([hostId])
+  @@index([hostTypeId])
+  @@index([domainMailId])
+  @@index([hostMailId])
+  @@index([cloudflareMailId])
+  @@index([teamId])
+}
+
 enum DomainStatus {
   ACTIVE
   INACTIVE
   PENDING
 }
 
-model Domain {
-  id           String       @id @default(cuid())
-  name         String       @unique
-  note         String?
-  status       DomainStatus @default(PENDING)
-  registeredAt DateTime     @default(now())
-  expiresAt    DateTime
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-}
+// --- End Domains ---
 
 // --- Hosts ---
 
@@ -63,6 +104,8 @@ model HostProvider {
   note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  domains   Domain[]
 }
 
 model HostType {
@@ -71,6 +114,8 @@ model HostType {
   note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  domains   Domain[]
 }
 
 // --- End Hosts ---
@@ -91,6 +136,8 @@ model Team {
   note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  domains   Domain[]
 }
 
 model EmailAccount {
@@ -100,6 +147,11 @@ model EmailAccount {
   note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // ความสัมพันธ์ reverse
+  domainsAsDomainMail   Domain[] @relation("DomainMail")
+  domainsAsHostMail     Domain[] @relation("HostMail")
+  domainsAsCloudflare   Domain[] @relation("CloudflareMail")
 }
 
 // --- End Menagements ---
@@ -111,7 +163,7 @@ model Program {
   name          String   @db.VarChar(200)
   version       String?  @db.VarChar(50)
   vendor        String?  @db.VarChar(120)
-  category      String   @db.VarChar(50)
+  category      String   @default("Misc.") @db.VarChar(50)
   content       String?  @db.Text
   iconUrl       String?  @db.Text
   fileUrl       String?  @db.Text

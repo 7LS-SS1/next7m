@@ -5,17 +5,16 @@ import React, { useEffect, useMemo, useState } from "react";
 type Option = { id: string; name?: string; address?: string };
 type Props = {
   hosts: { id: string; name: string }[];
+  hostTypes: { id: string; name: string }[];
   emails: { id: string; address: string }[];
   teams: { id: string; name: string }[];
-  /**
-   * ใช้ตอนหน้าแก้ไข ส่งค่าเริ่มต้นเข้ามา
-   * key ชื่อเดียวกับ name ของ input (ดูด้านล่าง)
-   */
+  
   defaults?: Partial<{
     domainType: "Money" | "NS" | "PBN";
-    domainName: string;
+    name: string;
     domainMail: string; // email id
     hostId: string;
+    hostTypeId: string;
     hostMail: string; // email id
     cloudflare: "true" | "false";
     cloudflareMail: string; // email id
@@ -28,15 +27,12 @@ type Props = {
     registeredAt: string;
     expiresAt: string;
   }>;
-  /**
-   * เปลี่ยนปลายทางได้เวลานำไปใช้หน้าแก้ไข
-   * เช่น "/domains/api/update"
-   */
   action?: string;
 };
 
 export default function DomainForm({
   hosts,
+  hostTypes,
   emails,
   teams,
   defaults,
@@ -92,6 +88,10 @@ export default function DomainForm({
   const hostOptions = useMemo(
     () => hosts.map((h) => ({ id: h.id, label: h.name })),
     [hosts]
+  );
+  const hostTypeOptions = useMemo(
+    () => hostTypes.map((ht) => ({ id: ht.id, label: ht.name })),
+    [hostTypes]
   );
   const teamOptions = useMemo(
     () => teams.map((t) => ({ id: t.id, label: t.name })),
@@ -150,7 +150,7 @@ export default function DomainForm({
             hint="ตัวอย่าง: example.com (ไม่ต้องใส่ http:// หรือ https://)"
           >
             <input
-              name="domainName"
+              name="name"
               placeholder="example.com"
               defaultValue={defaults?.domainName ?? ""}
               className="input"
@@ -196,6 +196,10 @@ export default function DomainForm({
 
           <Field label="Host" required hint="เลือกผู้ให้บริการโฮสต์ของโดเมน">
             <Select name="hostId" options={hostOptions} defaultValue={defaults?.hostId} required />
+          </Field>
+
+          <Field label="Host Type" required hint="ประเภทของบริการโฮสต์ เช่น VPS, Shared, Cloud">
+            <Select name="hostTypeId" options={hostTypeOptions} defaultValue={defaults?.hostTypeId} required />
           </Field>
 
           <Field label="Host Mail" hint="บัญชีอีเมลที่ใช้กับผู้ให้บริการโฮสต์">
