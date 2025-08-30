@@ -1,9 +1,3 @@
-// prisma/schema.prisma
-
-/**
- * -- เชื่อมต่อ DB - Neon --
- */
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,66 +7,44 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-//* -- Models อื่นๆ ที่ใช้ใน Project -- */
-
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
-  phone     String?  @unique
   password  String
-  role      String   @default("USER")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  phone     String?  @unique
+  role      String   @default("USER")
 
   @@index([email])
   @@index([phone])
 }
 
-enum Role {
-  SYSTEM
-  ADMIN
-  MANAGER
-  ASSISTANT_MANAGER
-  STAFF
-}
-
-// --- Domains ---
-
 model Domain {
-  id        String       @id @default(cuid())
-  name      String       @unique
-  note      String?
-  status    DomainStatus @default(PENDING)
-
-  registeredAt DateTime  @default(now()) // วันที่จด
-  expiresAt    DateTime  @default(dbgenerated("now() + interval '1 year'")) // วันหมดอายุ (registeredAt + 1 ปี)
-
-  hostId       String?
-  host         HostProvider? @relation(fields: [hostId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
-  hostTypeId   String?
-  hostType     HostType? @relation(fields: [hostTypeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
-  domainMailId String?
-  domainMail   EmailAccount? @relation("DomainMail", fields: [domainMailId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
-  hostMailId   String?
-  hostMail     EmailAccount? @relation("HostMail", fields: [hostMailId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
+  id               String        @id @default(cuid())
+  name             String        @unique
+  note             String?
+  status           DomainStatus  @default(PENDING)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  expiresAt        DateTime      @default(dbgenerated("(now() + '1 year'::interval)"))
+  registeredAt     DateTime      @default(now())
+  activeStatus     Boolean?       @default(true)
+  price            Float?
   cloudflareMailId String?
-  cloudflareMail   EmailAccount? @relation("CloudflareMail", fields: [cloudflareMailId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
-  teamId       String?
-  team         Team? @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
-  wordpressInstall Boolean @default(false)
-  activeStatus     Boolean @default(true)
-
-  statusCode   Int     @default(200)
-  redirect     Boolean @default(false)
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  domainMailId     String?
+  hostId           String?
+  hostMailId       String?
+  hostTypeId       String?
+  redirect         Boolean       @default(false)
+  teamId           String?
+  wordpressInstall Boolean       @default(false)
+  cloudflareMail   EmailAccount? @relation("CloudflareMail", fields: [cloudflareMailId], references: [id])
+  domainMail       EmailAccount? @relation("DomainMail", fields: [domainMailId], references: [id])
+  host             HostProvider? @relation(fields: [hostId], references: [id])
+  hostMail         EmailAccount? @relation("HostMail", fields: [hostMailId], references: [id])
+  hostType         HostType?     @relation(fields: [hostTypeId], references: [id])
+  team             Team?         @relation(fields: [teamId], references: [id])
 
   @@index([name])
   @@index([status])
@@ -86,23 +58,12 @@ model Domain {
   @@index([teamId])
 }
 
-enum DomainStatus {
-  ACTIVE
-  INACTIVE
-  PENDING
-}
-
-// --- End Domains ---
-
-// --- Hosts ---
-
 model HostProvider {
   id        String   @id @default(cuid())
   name      String   @unique
-  note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
+  note      String?
   domains   Domain[]
 }
 
@@ -112,13 +73,8 @@ model HostType {
   note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   domains   Domain[]
 }
-
-// --- End Hosts ---
-
-// --- Menagements ---
 
 model Project {
   id        String   @id @default(cuid())
@@ -131,30 +87,23 @@ model Project {
 model Team {
   id        String   @id @default(cuid())
   name      String   @unique
-  note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
+  note      String?
   domains   Domain[]
 }
 
 model EmailAccount {
-  id        String   @id @default(cuid())
-  address   String   @unique
-  provider  String
-  note      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // ความสัมพันธ์ reverse
-  domainsAsDomainMail   Domain[] @relation("DomainMail")
-  domainsAsHostMail     Domain[] @relation("HostMail")
-  domainsAsCloudflare   Domain[] @relation("CloudflareMail")
+  id                  String   @id @default(cuid())
+  address             String   @unique
+  provider            String
+  note                String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  domainsAsCloudflare Domain[] @relation("CloudflareMail")
+  domainsAsDomainMail Domain[] @relation("DomainMail")
+  domainsAsHostMail   Domain[] @relation("HostMail")
 }
-
-// --- End Menagements ---
-
-// --- Program ---
 
 model Program {
   id            String   @id @default(cuid())
@@ -162,45 +111,37 @@ model Program {
   version       String?  @db.VarChar(50)
   vendor        String?  @db.VarChar(120)
   category      String   @default("Misc.") @db.VarChar(50)
-  content       String?  @db.Text
-  iconUrl       String?  @db.Text
-  fileUrl       String?  @db.Text
+  content       String?
+  iconUrl       String?
+  fileUrl       String?
   recommended   Boolean  @default(false)
   isRecommended Boolean  @default(false)
   featured      Boolean  @default(false)
-  slug          String?  @unique @db.VarChar(120)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  slug          String?  @unique @db.VarChar(120)
 
   @@unique([name, version])
   @@index([category])
   @@index([vendor])
   @@index([updatedAt])
 }
-
-// --- End Program ---
-
-// --- Plugin ---
 
 model Plugin {
-  id         String  @id @default(cuid())
-  name       String  @db.VarChar(200)
-  version    String? @db.VarChar(50)
-  vendor     String? @db.VarChar(120)
-  pluginType String? @db.VarChar(50)
-  category   String  @default("Misc.") @db.VarChar(50)
-
-  content String? @db.Text
-  iconUrl String? @db.Text
-  fileUrl String? @db.Text
-
-  recommended Boolean @default(false)
-  featured    Boolean @default(false)
-
-  slug String? @unique @db.VarChar(120)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  name        String   @db.VarChar(200)
+  version     String?  @db.VarChar(50)
+  vendor      String?  @db.VarChar(120)
+  pluginType  String?  @db.VarChar(50)
+  category    String   @default("Misc.") @db.VarChar(50)
+  content     String?
+  iconUrl     String?
+  fileUrl     String?
+  recommended Boolean  @default(false)
+  featured    Boolean  @default(false)
+  slug        String?  @unique @db.VarChar(120)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([name, version])
   @@index([category])
@@ -208,4 +149,16 @@ model Plugin {
   @@index([updatedAt])
 }
 
-// --- End Plugin ---
+enum Role {
+  SYSTEM
+  ADMIN
+  MANAGER
+  ASSISTANT_MANAGER
+  STAFF
+}
+
+enum DomainStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}

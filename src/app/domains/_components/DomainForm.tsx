@@ -1,55 +1,53 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
+import Link from "next/link";
 
-type Option = { id: string; name?: string; address?: string };
 type Props = {
-  hosts: { id: string; name: string }[];
-  hostTypes: { id: string; name: string }[];
-  emails: { id: string; address: string }[];
-  teams: { id: string; name: string }[];
-  
+  hosts?: { id: string; name: string }[];
+  hostTypes?: { id: string; name: string }[];
+  emails?: { id: string; address: string }[];
+  teams?: { id: string; name: string }[];
+
   defaults?: Partial<{
-    domainType: "Money" | "NS" | "PBN";
+    id: string;
     name: string;
-    domainMail: string; // email id
-    hostId: string;
-    hostTypeId: string;
-    hostMail: string; // email id
-    cloudflare: "true" | "false";
-    cloudflareMail: string; // email id
-    teamId: string;
-    wordpress: "true" | "false";
-    active: "true" | "false";
-    status: "200" | "300" | "301" | "400" | "404" | "500";
-    redirect: "true" | "false";
-    redirectUrl: string;
-    registeredAt: string;
-    expiresAt: string;
+    note: string | null;
+    status: string; // Prisma enum DomainStatus (ใช้ string เพื่อความเข้ากันได้)
+    createdAt: string;
+    updatedAt: string;
+    expiresAt: string; // ISO yyyy-mm-dd
+    registeredAt: string; // ISO yyyy-mm-dd
+    activeStatus: boolean;
+    price: number | null;
+    
+    cloudflareMailId: string | null;
+    domainMailId: string | null;
+    hostId: string | null;
+    hostMailId: string | null;
+    hostTypeId: string | null;
+    redirect: boolean;
+    teamId: string | null;
+    wordpressInstall: boolean;
   }>;
-  action?: string;
+  action?: string | ((formData: FormData) => void | Promise<void>);
 };
 
 export default function DomainForm({
-  hosts,
-  hostTypes,
-  emails,
-  teams,
+  hosts = [],
+  hostTypes = [],
+  emails = [],
+  teams = [],
   defaults,
   action = "/domains/api/create",
 }: Props) {
-  // สถานะที่ต้องใช้ควบคุม UI
-  const [redirect, setRedirect] = useState<"true" | "false">(defaults?.redirect ?? "false");
-
-  // วันที่จดและวันหมดอายุ
-  // เก็บรูปแบบเป็น YYYY-MM-DD เพื่อให้ส่งผ่าน form ได้ตรงไปตรงมา
-  const [registeredAt, setRegisteredAt] = useState<string>(() => {
-    // รองรับทั้งค่าเริ่มต้นจาก defaults หรือเปล่า
-    return defaults?.registeredAt ?? "";
-  });
-  const [expiresAt, setExpiresAt] = useState<string>(() => {
-    return defaults?.expiresAt ?? "";
-  });
+  const isEdit = Boolean(defaults?.id);
+  const todayYMD = new Date().toISOString().slice(0, 10);
+  const initialRegistered = defaults?.registeredAt ?? todayYMD;
+  const [registeredAt, setRegisteredAt] = useState<string>(initialRegistered);
+  const [expiresAt, setExpiresAt] = useState<string>(
+    defaults?.expiresAt ?? calcPlusOneYear(initialRegistered)
+  );
 
   // helper: เพิ่ม 1 ปีจากวันที่รูปแบบ YYYY-MM-DD
   function calcPlusOneYear(ymd: string): string {
@@ -71,15 +69,6 @@ export default function DomainForm({
     return `${yy}-${mm}-${dd}`;
   }
 
-  // คำนวนวันหมดอายุอัตโนมัติเมื่อวันที่จดเปลี่ยน
-  useEffect(() => {
-    if (registeredAt) {
-      setExpiresAt(calcPlusOneYear(registeredAt));
-    } else {
-      setExpiresAt("");
-    }
-  }, [registeredAt]);
-
   // สร้าง option ที่อ่านง่ายใน UI
   const emailOptions = useMemo(
     () => emails.map((e) => ({ id: e.id, label: e.address })),
@@ -98,90 +87,98 @@ export default function DomainForm({
     [teams]
   );
 
+  const isServerAction = typeof action === "function";
+  const formProps: React.FormHTMLAttributes<HTMLFormElement> = {
+    action: action as any,
+    className:
+      "card max-w-4xl rounded-2xl border border-white/10 bg-[rgb(var(--card))]/60 p-6 backdrop-blur",
+  };
+  if (!isServerAction) {
+    formProps.method = "post";
+  }
+
   return (
-    <form
-      method="post"
-      action={action}
-      className="card max-w-4xl rounded-2xl border border-white/10 bg-[rgb(var(--card))]/60 p-6 backdrop-blur"
-    >
+    <form {...formProps}>
+      {/* hidden meta for update & boolean touched flags */}
+      {defaults?.id ? <input type="hidden" name="id" value={defaults.id} /> : null}
+      <input type="hidden" name="activeStatus__touched" value="1" />
+      <input type="hidden" name="redirect__touched" value="1" />
+      <input type="hidden" name="wordpressInstall__touched" value="1" />
+
       {/* Header */}
       <header className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold tracking-tight">เพิ่ม Domain ใหม่</h2>
-          <p className="text-sm text-white/60">
-            ระบุรายละเอียดโดเมน, โฮสต์, ทีม และคอนฟิกสำคัญให้ครบถ้วน
-          </p>
+          <h2 className="text-xl font-bold tracking-tight">{isEdit ? "แก้ไข Domain" : "สร้าง Domain"}</h2>
+          <p className="text-sm text-white/60">ปรับรายละเอียดให้สอดคล้องกับฐานข้อมูล</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="reset"
+          <Link
+            href="/domains"
             className="rounded-xl border border-white/15 px-4 py-2 text-sm hover:bg-white/5"
           >
-            ล้างฟอร์ม
-          </button>
-          <button
-            type="submit"
-            className="btn-primary rounded-xl px-4 py-2 text-sm font-semibold text-black bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:brightness-95"
-          >
-            บันทึก Domain
-          </button>
+            ย้อนกลับ
+          </Link>
+          <button type="reset" className="rounded-xl border border-white/15 px-4 py-2 text-sm hover:bg-white/5">ล้างฟอร์ม</button>
+          <button type="submit" className="btn-primary rounded-xl px-4 py-2 text-sm font-semibold text-black bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:brightness-95">{isEdit ? "บันทึก" : "สร้าง"}</button>
         </div>
       </header>
 
-      {/* Section: พื้นฐาน */}
+      {/* Section: ข้อมูลพื้นฐาน */}
       <Section title="ข้อมูลพื้นฐาน">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Domain Type" required hint="กำหนดประเภทการใช้งานของโดเมน">
-            <select
-              name="domainType"
-              defaultValue={defaults?.domainType ?? "Money"}
-              className="input"
-              required
-            >
-              <option value="Money">Money</option>
-              <option value="NS">NS</option>
-              <option value="PBN">PBN</option>
-            </select>
-          </Field>
-
-          <Field
-            label="Domain Name"
-            required
-            hint="ตัวอย่าง: example.com (ไม่ต้องใส่ http:// หรือ https://)"
-          >
-            <input
-              name="name"
-              placeholder="example.com"
-              defaultValue={defaults?.name ?? ""}
-              className="input"
-              required
-              autoComplete="off"
-              inputMode="url"
-            />
-          </Field>
-
-          <Field label="วันที่จด (Registration Date)" required hint="กำหนดวันที่เริ่มต้นถือครองโดเมน">
+        <div className="grid gap-4 md:grid-cols-4">
+          <div className="md:col-span-2">
+            <Field label="Domain Name" required hint="ตัวอย่าง: example.com (ไม่ต้องใส่ http/https)">
+              <input
+                name="name"
+                placeholder="example.com"
+                defaultValue={defaults?.name ?? ""}
+                className="input"
+                required
+                autoComplete="off"
+                inputMode="url"
+              />
+            </Field>
+          </div>
+          <Field label="วันที่จด (registeredAt)" required>
             <input
               type="date"
               name="registeredAt"
               value={registeredAt}
-              onChange={(e) => setRegisteredAt((e.target as HTMLInputElement).value)}
+              onChange={(e) => {
+                const v = (e.target as HTMLInputElement).value;
+                setRegisteredAt(v);
+                setExpiresAt(v ? calcPlusOneYear(v) : "");
+              }}
               className="input"
               required
             />
           </Field>
 
-          <Field label="วันหมดอายุ (Expires At)" required hint="คำนวณอัตโนมัติ +1 ปีจากวันที่จด">
+          <Field label="วันหมดอายุ (expiresAt)" required hint="คำนวณอัตโนมัติ +1 ปี (แก้ไขได้)">
             <input
               type="date"
               name="expiresAt"
               value={expiresAt}
-              // readOnly
-              disabled
-              className="input bg-white/5"
+              onChange={(e) => setExpiresAt((e.target as HTMLInputElement).value)}
+              className="input"
               required
+              disabled
             />
           </Field>
+          <div className="md:col-span-2">
+            <Field label="ราคาที่จด (บาท)">
+              <input
+                type="number"
+                step="0.01"
+                name="price"
+                defaultValue={
+                  typeof defaults?.price === "number" ? String(defaults.price) : ""
+                }
+                className="input"
+                inputMode="decimal"
+              />
+            </Field>
+          </div>
         </div>
       </Section>
 
@@ -190,142 +187,87 @@ export default function DomainForm({
       {/* Section: อีเมล & โฮสติ้ง */}
       <Section title="อีเมล & โฮสติ้ง">
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Domain Mail" hint="บัญชีอีเมลหลักของโดเมน">
-            <Select name="domainMail" options={emailOptions} defaultValue={defaults?.domainMail} />
+          <Field label="Domain Mail">
+            <Select name="domainMailId" options={emailOptions} defaultValue={defaults?.domainMailId ?? undefined} />
           </Field>
 
-          <Field label="Host" required hint="เลือกผู้ให้บริการโฮสต์ของโดเมน">
-            <Select name="hostId" options={hostOptions} defaultValue={defaults?.hostId} required />
+          <Field label="Host">
+            <Select name="hostId" options={hostOptions} defaultValue={defaults?.hostId ?? undefined} />
           </Field>
 
-          <Field label="Host Type" required hint="ประเภทของบริการโฮสต์ เช่น VPS, Shared, Cloud">
-            <Select name="hostTypeId" options={hostTypeOptions} defaultValue={defaults?.hostTypeId} required />
+          <Field label="Host Type">
+            <Select name="hostTypeId" options={hostTypeOptions} defaultValue={defaults?.hostTypeId ?? undefined} />
           </Field>
 
-          <Field label="Host Mail" hint="บัญชีอีเมลที่ใช้กับผู้ให้บริการโฮสต์">
-            <Select name="hostMail" options={emailOptions} defaultValue={defaults?.hostMail} />
+          <Field label="Host Mail">
+            <Select name="hostMailId" options={emailOptions} defaultValue={defaults?.hostMailId ?? undefined} />
           </Field>
 
-          <Field label="Team" hint="ทีมที่รับผิดชอบโดเมน">
-            <Select name="teamId" options={teamOptions} defaultValue={defaults?.teamId} />
-          </Field>
-        </div>
-      </Section>
-
-      <Divider />
-
-      {/* Section: Cloudflare & Status */}
-      <Section title="ความปลอดภัย & สถานะ">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="ใช้ Cloudflare" hint="ป้องกันและเพิ่มประสิทธิภาพด้วย Cloudflare">
-            <select
-              name="cloudflare"
-              defaultValue={defaults?.cloudflare ?? "false"}
-              className="input"
-            >
-              <option value="true">ใช้</option>
-              <option value="false">ไม่ใช้</option>
-            </select>
+          <Field label="Cloudflare Mail">
+            <Select name="cloudflareMailId" options={emailOptions} defaultValue={defaults?.cloudflareMailId ?? undefined} />
           </Field>
 
-          <Field label="Cloudflare Mail" hint="บัญชีอีเมลจัดการ Cloudflare (ถ้ามี)">
-            <Select
-              name="cloudflareMail"
-              options={emailOptions}
-              defaultValue={defaults?.cloudflareMail}
-            />
-          </Field>
-
-          <Field label="WordPress Install" hint="โดเมนนี้ติดตั้ง WordPress หรือไม่">
-            <select
-              name="wordpress"
-              defaultValue={defaults?.wordpress ?? "false"}
-              className="input"
-            >
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </select>
-          </Field>
-
-          <Field label="Active" hint="สถานะการใช้งานของโดเมน">
-            <select
-              name="active"
-              defaultValue={defaults?.active ?? "true"}
-              className="input"
-            >
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </select>
-          </Field>
-
-          <Field label="HTTP Status Code" hint="สถานะของปลายทางโดเมน">
-            <select
-              name="status"
-              defaultValue={defaults?.status ?? "200"}
-              className="input"
-            >
-              <option value="200">200</option>
-              <option value="300">300</option>
-              <option value="301">301</option>
-              <option value="400">400</option>
-              <option value="404">404</option>
-              <option value="500">500</option>
-            </select>
+          <Field label="Team">
+            <Select name="teamId" options={teamOptions} defaultValue={defaults?.teamId ?? undefined} />
           </Field>
         </div>
       </Section>
 
       <Divider />
 
-      {/* Section: Redirect */}
-      <Section title="Redirect">
+      {/* Section: ค่าคอนฟิก */}
+      <Section title="คอนฟิก">
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="เปิดการ Redirect" hint="ถ้า Yes ต้องกรอก URL ปลายทาง">
-            <select
-              name="redirect"
-              value={redirect}
-              onChange={(e) => setRedirect((e.target as HTMLSelectElement).value as "true" | "false")}
-              className="input"
-            >
-              <option value="false">No</option>
-              <option value="true">Yes</option>
-            </select>
+          <Field label="Active Status">
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input type="checkbox" name="activeStatus" defaultChecked={Boolean(defaults?.activeStatus)} />
+              <span>ใช้งานอยู่</span>
+            </label>
           </Field>
 
-          <Field
-            label="Redirect URL"
-            hint="ตัวอย่าง: https://target.example.com"
-            disabled={redirect !== "true"}
-            required={redirect === "true"}
-          >
-            <input
-              name="redirectUrl"
-              placeholder="https://example.com"
-              defaultValue={defaults?.redirectUrl ?? ""}
-              className="input"
-              type="url"
-              disabled={redirect !== "true"}
-              required={redirect === "true"}
-              inputMode="url"
-            />
+          <Field label="WordPress Install">
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input type="checkbox" name="wordpressInstall" defaultChecked={Boolean(defaults?.wordpressInstall)} />
+              <span>ติดตั้ง WordPress</span>
+            </label>
+          </Field>
+
+          <Field label="เปิด Redirect">
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="redirect"
+                defaultChecked={Boolean(defaults?.redirect)}
+              />
+              <span>Redirect</span>
+            </label>
           </Field>
         </div>
       </Section>
 
-      {/* Footer Actions (ซ้ำ เพื่อกดบันทึกได้จากท้ายฟอร์ม) */}
+      <Divider />
+
+      {/* Section: หมายเหตุ */}
+      <Section title="หมายเหตุ">
+        <div className="flex flex-col gap-2">
+          <textarea
+            name="note"
+            defaultValue={defaults?.note ?? ""}
+            className="input h-24 resize-none"
+            placeholder="หมายเหตุอื่นๆ เช่น จดกับใคร, ใครเป็นผู้ดูแล, ใครเป็นผู้ติดต่อ ฯลฯ"
+          />
+        </div>
+      </Section>
+      {/* Footer Actions */}
       <div className="mt-6 flex items-center justify-end gap-2">
-        <button
-          type="reset"
+        <Link
+          href="/domains"
           className="rounded-xl border border-white/15 px-4 py-2 text-sm hover:bg-white/5"
         >
-          ล้างฟอร์ม
-        </button>
-        <button
-          type="submit"
-          className="btn-primary rounded-xl px-4 py-2 text-sm font-semibold text-black bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:brightness-95"
-        >
-          บันทึก Domain
-        </button>
+          ย้อนกลับ
+        </Link>
+        <button type="reset" className="rounded-xl border border-white/15 px-4 py-2 text-sm hover:bg-white/5">ล้างฟอร์ม</button>
+        <button type="submit" className="btn-primary rounded-xl px-4 py-2 text-sm font-semibold text-black bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:brightness-95">{isEdit ? "บันทึก" : "สร้าง"}</button>
       </div>
     </form>
   );
@@ -368,7 +310,7 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className={disabled ? "opacity-60" : undefined}>
+    <div className={disabled ? "opacity-60" : undefined }>
       <label className="mb-1 block text-sm font-medium">
         {label} {required && <span className="text-amber-400">*</span>}
       </label>
@@ -391,6 +333,7 @@ function Select({
 }) {
   return (
     <select
+      title={name}
       name={name}
       defaultValue={defaultValue}
       className="input"

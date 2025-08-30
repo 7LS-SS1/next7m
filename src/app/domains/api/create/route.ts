@@ -33,39 +33,44 @@ const toInt = (v: unknown) => {
   const n = Number(s);
   return Number.isInteger(n) ? (n as number) : undefined;
 };
+const toFloat = (v: unknown) => {
+  const s = trim(v);
+  if (!s) return undefined;
+  const n = Number(s);
+  return Number.isFinite(n) ? (n as number) : undefined;
+};
 
+// ตรงกับ Model Domain ปัจจุบัน
 const Schema = z.object({
   name: z.string().min(2).max(255),
+  note: z.preprocess((v) => trim(v), z.string().optional()).transform((v) => (v === "" ? undefined : v)).optional(),
+
+  // Domain.status (enum)
+  status: z
+    .preprocess((v) => (trim(v) || undefined), z.enum(["ACTIVE", "INACTIVE", "PENDING"]).optional())
+    .transform((v) => (v ?? "PENDING") as DomainStatus)
+    .optional(),
 
   // dates
-  registeredAt: z.preprocess(toDate, z.date().optional()), // ถ้าไม่ส่งมา จะใส่ new Date() ให้เอง
+  registeredAt: z.preprocess(toDate, z.date().optional()),
+  expiresAt: z.preprocess(toDate, z.date().optional()),
 
   // relations (string id หรือ ว่าง)
   hostId: z.preprocess(emptyToUndef, z.string().optional()),
   hostTypeId: z.preprocess(emptyToUndef, z.string().optional()),
   teamId: z.preprocess(emptyToUndef, z.string().optional()),
 
-  domainMail: z.preprocess(emptyToUndef, z.string().optional()),
-  hostMail: z.preprocess(emptyToUndef, z.string().optional()),
-  cloudflareMail: z.preprocess(emptyToUndef, z.string().optional()),
+  domainMailId: z.preprocess(emptyToUndef, z.string().optional()),
+  hostMailId: z.preprocess(emptyToUndef, z.string().optional()),
+  cloudflareMailId: z.preprocess(emptyToUndef, z.string().optional()),
 
-  // flags
-  wordpress: z.preprocess(toBool, z.boolean().optional()),
-  active: z.preprocess(toBool, z.boolean().optional()),
+  // flags (ชื่อใหม่ตาม Model)
+  wordpressInstall: z.preprocess(toBool, z.boolean().optional()),
+  activeStatus: z.preprocess(toBool, z.boolean().optional()),
   redirect: z.preprocess(toBool, z.boolean().optional()),
 
-  // HTTP status code (ยอมรับทั้ง statusCode และ status เดิม)
-  statusCode: z.preprocess(toInt, z.number().int().optional()),
-  status: z.preprocess(toInt, z.number().int().optional()).optional(), // backup field
-
-  // Domain.status (ACTIVE/INACTIVE/PENDING) — ไม่ได้อยู่ในฟอร์มนี้ ให้ default = PENDING
-  domainStatus: z
-    .preprocess((v) => {
-      const s = trim(v);
-      return s ? s : undefined;
-    }, z.enum(["ACTIVE", "INACTIVE", "PENDING"]).optional())
-    .transform((v) => (v ?? "PENDING") as DomainStatus)
-    .optional(),
+  // price (Float?)
+  price: z.preprocess(toFloat, z.number().optional()),
 });
 
 export async function POST(req: Request) {
@@ -73,26 +78,28 @@ export async function POST(req: Request) {
   try {
     const fd = await req.formData();
 
-    // map ชื่อฟิลด์จากฟอร์ม -> schema
+    // map ชื่อฟิลด์จากฟอร์ม -> schema (สอดคล้องกับ DomainForm ใหม่)
     const parsed = Schema.safeParse({
       name: fd.get("name"),
+      note: fd.get("note"),
+      status: fd.get("status"), // ACTIVE/INACTIVE/PENDING
 
       registeredAt: fd.get("registeredAt"),
+      expiresAt: fd.get("expiresAt"),
 
       hostId: fd.get("hostId"),
       hostTypeId: fd.get("hostTypeId"),
       teamId: fd.get("teamId"),
 
-      domainMail: fd.get("domainMail"),
-      hostMail: fd.get("hostMail"),
-      cloudflareMail: fd.get("cloudflareMail"),
+      domainMailId: fd.get("domainMailId"),
+      hostMailId: fd.get("hostMailId"),
+      cloudflareMailId: fd.get("cloudflareMailId"),
 
-      wordpress: fd.get("wordpress"),
-      active: fd.get("active"),
+      wordpressInstall: fd.get("wordpressInstall"),
+      activeStatus: fd.get("activeStatus"),
       redirect: fd.get("redirect"),
 
-      statusCode: fd.get("statusCode") ?? fd.get("status"), // รองรับชื่อเก่า
-      // domainStatus: ไม่มีจากฟอร์มนี้ ปล่อยว่าง -> default PENDING
+      price: fd.get("price"),
     });
 
     if (!parsed.success) {
@@ -115,40 +122,36 @@ export async function POST(req: Request) {
       );
     }
 
-    // ค่าที่ผ่านการแปลงแล้ว
     const d = parsed.data;
 
-    // ลงทะเบียนวันจด & วันหมดอายุ (+1 ปี) — ถ้าไม่ส่ง registeredAt มา ใช้วันนี้
+    // registeredAt: ถ้าไม่ส่งมา → วันนี้
     const registeredAt = d.registeredAt ?? new Date();
-    const expiresAt = new Date(registeredAt);
-    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+    // expiresAt: ถ้าส่งมาใช้ตามนั้น, ถ้าไม่ส่งมา +1 ปี ตามนโยบายฟอร์ม
+    const expiresAt = d.expiresAt ?? new Date(new Date(registeredAt).setFullYear(registeredAt.getFullYear() + 1));
 
-    // สร้าง payload ให้ตรง Prisma.DomainCreateInput
+    // Prisma payload ให้ตรงกับ DomainCreateInput
     const data: Prisma.DomainCreateInput = {
       name: d.name,
-      // Domain.status (enum) — default PENDING
-      status: (d.domainStatus ?? "PENDING") as DomainStatus,
-
-      // บังคับใน schema
+      status: (d.status ?? "PENDING") as DomainStatus,
       registeredAt,
       expiresAt,
+      ...(d.note !== undefined ? { note: d.note } : {}),
 
       // flags
-      ...(d.wordpress !== undefined ? { wordpressInstall: d.wordpress } : {}),
-      ...(d.active !== undefined ? { activeStatus: d.active } : {}),
+      ...(d.wordpressInstall !== undefined ? { wordpressInstall: d.wordpressInstall } : {}),
+      ...(d.activeStatus !== undefined ? { activeStatus: d.activeStatus } : {}),
       ...(d.redirect !== undefined ? { redirect: d.redirect } : {}),
 
-      // http status code
-      ...(d.statusCode !== undefined ? { statusCode: d.statusCode } : {}),
+      ...(d.price !== undefined ? { price: d.price } : {}),
 
       // relations (connect เฉพาะที่ส่งมา)
       ...(d.hostId ? { host: { connect: { id: d.hostId } } } : {}),
       ...(d.hostTypeId ? { hostType: { connect: { id: d.hostTypeId } } } : {}),
       ...(d.teamId ? { team: { connect: { id: d.teamId } } } : {}),
 
-      ...(d.domainMail ? { domainMail: { connect: { id: d.domainMail } } } : {}),
-      ...(d.hostMail ? { hostMail: { connect: { id: d.hostMail } } } : {}),
-      ...(d.cloudflareMail ? { cloudflareMail: { connect: { id: d.cloudflareMail } } } : {}),
+      ...(d.domainMailId ? { domainMail: { connect: { id: d.domainMailId } } } : {}),
+      ...(d.hostMailId ? { hostMail: { connect: { id: d.hostMailId } } } : {}),
+      ...(d.cloudflareMailId ? { cloudflareMail: { connect: { id: d.cloudflareMailId } } } : {}),
     };
 
     // สร้าง record

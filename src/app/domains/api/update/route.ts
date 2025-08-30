@@ -1,208 +1,230 @@
 // src/app/domains/api/update/route.ts
 import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { Prisma, DomainStatus } from "@prisma/client";
-import { z } from "zod";
+import { DomainStatus } from "@prisma/client";
 
-const LIST = "/domains";
-
-/* ---------------- helpers ---------------- */
-const trim = (v: unknown) => (v == null ? undefined : v.toString().trim());
-
-/** formData:
- * - ถ้า key ไม่ถูกส่งมา -> fd.get(...) = null  => ไม่อัปเดตฟิลด์นั้น
- * - ถ้าส่งค่าว่าง ""    -> ต้องการ “ล้างค่า”   => จะ map เป็น null
- */
-const toNullOrString = (v: unknown) => {
-  if (v == null) return undefined; // null หรือ undefined -> ไม่อัปเดต
-  const s = v.toString().trim();
-  return s === "" ? null : s; // "" => null (ล้างค่า)
-};
-
-const toDate = (v: unknown) => {
-  if (v === null || v === undefined) return undefined; // ไม่อัปเดต
-  const s = v.toString().trim();
-  if (!s) return null; // ล้างค่า (กรณีต้องการให้เป็น null) — แต่ฟิลด์เราบังคับ Date, ปกติไม่เปิดล้าง
-  const iso = /^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T00:00:00Z` : s;
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? undefined : d;
-};
-
+/* -----------------------------------------------------
+ * Helpers
+ * --------------------------------------------------- */
+const toURL = (path: string, req: Request) => new URL(path, req.url);
+const trim = (v: unknown) => (v == null ? "" : String(v).trim());
 const toBool = (v: unknown) => {
-  if (v == null) return undefined; // ไม่อัปเดต (null/undefined)
-  const s = v.toString().trim().toLowerCase();
-  if (["true", "1", "on", "yes"].includes(s)) return true;
-  if (["false", "0", "off", "no", ""].includes(s)) return false;
-  return undefined;
+  const s = trim(v).toLowerCase();
+  return s === "true" || s === "1" || s === "on" || s === "yes";
 };
-
+const toDate = (v: unknown) => {
+  const s = trim(v);
+  if (!s) return undefined;
+  const iso = /^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T00:00:00.000Z` : s;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+};
 const toInt = (v: unknown) => {
-  if (v == null) return undefined; // null/undefined -> ไม่อัปเดต
-  const s = v.toString().trim();
+  const s = trim(v);
   if (!s) return undefined;
   const n = Number(s);
-  return Number.isFinite(n) ? Math.trunc(n) : undefined;
+  return Number.isInteger(n) ? (n as number) : undefined;
+};
+const toFloat = (v: unknown) => {
+  let s = trim(v);
+  if (!s) return undefined;
+  // normalize Thai numerals ๐-๙ to 0-9
+  const th = "๐๑๒๓๔๕๖๗๘๙";
+  s = s
+    .replace(/[฿\s]/g, "")            // remove currency symbol & spaces
+    .replace(/[，]/g, ",");            // full-width comma to normal comma
+  // map Thai digits
+  s = s.replace(/[๐-๙]/g, (d) => String(th.indexOf(d)));
+  // remove thousand separators (commas). Assume dot is decimal separator in our locale.
+  s = s.replace(/,/g, "");
+  const n = Number(s);
+  return Number.isFinite(n) ? (n as number) : undefined;
 };
 
-const AllowedStatusCodes = new Set([200, 301, 302, 307, 308, 400, 404, 500]);
+const getFD = (fd: FormData, key: string): FormDataEntryValue | null =>
+  fd.get(key) ?? fd.get(`1_${key}`) ?? null;
+const hasFD = (fd: FormData, key: string): boolean =>
+  fd.has(key) || fd.has(`1_${key}`);
 
-/* ---------------- input schema ---------------- */
-const Schema = z.object({
-  id: z.preprocess(trim, z.string().min(8)), // ต้องมี id เสมอ
+const safe = (v: any) => {
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
+};
 
-  name: z.preprocess(trim, z.string().min(2).max(255)).optional(),
-  note: z.preprocess(
-    (v) => (v === null ? undefined : v?.toString() ?? undefined),
-    z.string().max(500).nullable().optional()
-  ),
-  status: z
-    .preprocess(trim, z.enum(["ACTIVE", "INACTIVE", "PENDING"]).optional())
-    .optional(),
+const MODEL_FIELDS = new Set([
+  "name",
+  "note",
+  "status",
+  "expiresAt",
+  "registeredAt",
+  "activeStatus",
+  "price",
+  "cloudflareMailId",
+  "domainMailId",
+  "hostId",
+  "hostMailId",
+  "hostTypeId",
+  "redirect",
+  "teamId",
+  "wordpressInstall",
+]);
 
-  // dates
-  registeredAt: z.preprocess(toDate, z.date().optional()),
-
-  // FKs: undefined = ไม่แตะ, string = เซ็ตเป็นค่านั้น, null = ล้างค่า
-  hostId: z.preprocess(toNullOrString, z.union([z.string(), z.null()]).optional()),
-  hostTypeId: z.preprocess(toNullOrString, z.union([z.string(), z.null()]).optional()),
-  domainMailId: z.preprocess(toNullOrString, z.union([z.string(), z.null()]).optional()),
-  hostMailId: z.preprocess(toNullOrString, z.union([z.string(), z.null()]).optional()),
-  cloudflareMailId: z.preprocess(toNullOrString, z.union([z.string(), z.null()]).optional()),
-  teamId: z.preprocess(toNullOrString, z.union([z.string(), z.null()]).optional()),
-
-  // flags
-  wordpressInstall: z.preprocess(toBool, z.boolean().optional()),
-  activeStatus: z.preprocess(toBool, z.boolean().optional()),
-  redirect: z.preprocess(toBool, z.boolean().optional()),
-
-  // statusCode
-  statusCode: z
-    .preprocess(toInt, z.number().int().refine((v) => AllowedStatusCodes.has(v), "invalid statusCode"))
-    .optional(),
-});
-
+/* -----------------------------------------------------
+ * POST /domains/api/update
+ * Accepts multipart/form-data from DomainForm
+ * --------------------------------------------------- */
 export async function POST(req: Request) {
   try {
     const fd = await req.formData();
 
-    const parsed = Schema.safeParse({
-      id: fd.get("id"),
+    const snapshot: Record<string, any> = {};
+    for (const [k, val] of fd.entries()) {
+      // avoid logging big blobs/files
+      if (typeof val === "string") snapshot[k] = val;
+      else snapshot[k] = `[${val.constructor?.name ?? "Blob"}]`;
+    }
+    // quick hint if fields are prefixed (e.g., "1_")
+    const prefixed = Object.keys(snapshot).some((k) => k.startsWith("1_"));
+    if (prefixed) console.warn("[domains.update] detected prefixed keys (e.g., '1_'). Using compatibility reader.");
+    console.info("[domains.update] incoming form:", safe(snapshot));
 
-      name: fd.get("name"),
-      note: fd.get("note"),
-      status: fd.get("status"),
+    // id (required)
+    const id = trim(getFD(fd, "id"));
+    if (!id) {
+      return NextResponse.redirect(toURL("/domains?toast=error", req), { status: 303 });
+    }
+    console.info("[domains.update] target id:", id);
 
-      registeredAt: fd.get("registeredAt"),
+    // Build update payload (assign only provided fields)
+    const data: Record<string, any> = {};
+    const set = (k: string, v: any) => {
+      if (v === undefined) return;
+      if (!MODEL_FIELDS.has(k)) {
+        console.warn("[domains.update] ignoring unknown key:", k);
+        return;
+      }
+      data[k] = v;
+    };
 
-      hostId: fd.get("hostId"),
-      hostTypeId: fd.get("hostTypeId"),
-      domainMailId: fd.get("domainMailId"),
-      hostMailId: fd.get("hostMailId"),
-      cloudflareMailId: fd.get("cloudflareMailId"),
-      teamId: fd.get("teamId"),
+    // name (required in schema) -> update only if non-empty string
+    const name = trim(getFD(fd, "name"));
+    if (name) set("name", name);
 
-      wordpressInstall: fd.get("wordpressInstall"),
-      activeStatus: fd.get("activeStatus"),
-      redirect: fd.get("redirect"),
-
-      statusCode: fd.get("statusCode"),
-    });
-
-    if (!parsed.success) {
-      console.error("[domains/update] invalid input", {
-        issues: parsed.error.issues,
-      });
-      const detail = encodeURIComponent("ข้อมูลไม่ถูกต้อง");
-      return NextResponse.redirect(
-        new URL(`${LIST}/${encodeURIComponent(fd.get("id")?.toString() ?? "")}/edit?toast=invalid&detail=${detail}`, req.url),
-        { status: 303 }
-      );
+    // note (nullable)
+    if (hasFD(fd, "note")) {
+      const s = trim(getFD(fd, "note"));
+      set("note", s === "" ? null : s);
     }
 
-    const id = parsed.data.id;
-
-    // สร้าง payload แบบ update เฉพาะฟิลด์ที่ถูกส่งมา
-    const data: Prisma.DomainUncheckedUpdateInput = {};
-
-    if (parsed.data.name !== undefined) data.name = parsed.data.name;
-    if (parsed.data.note !== undefined) data.note = parsed.data.note; // string | null
-    if (parsed.data.status !== undefined)
-      data.status = parsed.data.status as DomainStatus;
-
-    // ถ้าเปลี่ยน registeredAt -> คำนวณ expiresAt ใหม่
-    if (parsed.data.registeredAt !== undefined) {
-      const registeredAt = parsed.data.registeredAt;
-      if (registeredAt instanceof Date && !isNaN(registeredAt.getTime())) {
-        const expiresAt = new Date(registeredAt);
-        expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-        data.registeredAt = registeredAt;
-        data.expiresAt = expiresAt;
+    // status enum (PENDING | ACTIVE | INACTIVE)
+    const statusRaw = trim(getFD(fd, "status"));
+    if (statusRaw) {
+      const upper = statusRaw.toUpperCase();
+      if (["PENDING", "ACTIVE", "INACTIVE"].includes(upper)) {
+        set("status", upper as DomainStatus);
       }
     }
 
-    // FKs (string | null | undefined)
-    if (parsed.data.hostId !== undefined) data.hostId = parsed.data.hostId;
-    if (parsed.data.hostTypeId !== undefined) data.hostTypeId = parsed.data.hostTypeId;
-    if (parsed.data.domainMailId !== undefined) data.domainMailId = parsed.data.domainMailId;
-    if (parsed.data.hostMailId !== undefined) data.hostMailId = parsed.data.hostMailId;
-    if (parsed.data.cloudflareMailId !== undefined) data.cloudflareMailId = parsed.data.cloudflareMailId;
-    if (parsed.data.teamId !== undefined) data.teamId = parsed.data.teamId;
+    // Dates (non-nullable in schema, update only when provided)
+    const registeredAt = toDate(getFD(fd, "registeredAt"));
+    if (registeredAt) set("registeredAt", registeredAt);
+    const expiresAt = toDate(getFD(fd, "expiresAt"));
+    if (expiresAt) set("expiresAt", expiresAt);
 
-    // flags
-    if (parsed.data.wordpressInstall !== undefined) data.wordpressInstall = parsed.data.wordpressInstall;
-    if (parsed.data.activeStatus !== undefined) data.activeStatus = parsed.data.activeStatus;
-    if (parsed.data.redirect !== undefined) data.redirect = parsed.data.redirect;
+    // Booleans (support __touched to allow false)
+    if (hasFD(fd, "activeStatus") || hasFD(fd, "activeStatus__touched")) set("activeStatus", toBool(getFD(fd, "activeStatus")));
+    if (hasFD(fd, "redirect") || hasFD(fd, "redirect__touched")) set("redirect", toBool(getFD(fd, "redirect")));
+    if (hasFD(fd, "wordpressInstall") || hasFD(fd, "wordpressInstall__touched")) set("wordpressInstall", toBool(getFD(fd, "wordpressInstall")));
 
-    // statusCode
-    if (parsed.data.statusCode !== undefined) data.statusCode = parsed.data.statusCode;
+    // Price (nullable Float)
+    // Use `price__touched` so empty input can explicitly clear to null
+    if (hasFD(fd, "price") || hasFD(fd, "price__touched")) {
+      const raw = getFD(fd, "price");
+      const s = trim(raw);
+      console.info("[domains.update] price/raw=", safe(raw), " touched=", hasFD(fd, "price__touched"));
+      if (s === "") {
+        set("price", null);
+      } else {
+        const f = toFloat(raw);
+        if (f === undefined) {
+          console.error("[domains.update] invalid price:", safe(raw));
+          return NextResponse.redirect(toURL("/domains?toast=error&reason=invalid_price", req), { status: 303 });
+        }
+        set("price", f);
+      }
+    }
+
+    // Nullable FKs (empty string -> null, missing -> not updated)
+    if (hasFD(fd, "hostId")) set("hostId", trim(getFD(fd, "hostId")) || null);
+    if (hasFD(fd, "hostTypeId")) set("hostTypeId", trim(getFD(fd, "hostTypeId")) || null);
+    if (hasFD(fd, "teamId")) set("teamId", trim(getFD(fd, "teamId")) || null);
+    if (hasFD(fd, "domainMailId")) set("domainMailId", trim(getFD(fd, "domainMailId")) || null);
+    if (hasFD(fd, "hostMailId")) set("hostMailId", trim(getFD(fd, "hostMailId")) || null);
+    if (hasFD(fd, "cloudflareMailId")) set("cloudflareMailId", trim(getFD(fd, "cloudflareMailId")) || null);
+
+    console.info("[domains.update] built payload: ", safe(data));
+    // Verify keys & types against DB model expectations
+    for (const [k, v] of Object.entries(data)) {
+      if (!MODEL_FIELDS.has(k)) {
+        console.error("[domains.update] payload contains non-model key:", k);
+        return NextResponse.redirect(toURL("/domains?toast=error", req), { status: 303 });
+      }
+      // lightweight type checks
+      if ((k === "registeredAt" || k === "expiresAt") && !(v instanceof Date)) {
+        console.error("[domains.update] invalid type for date field", k, typeof v);
+        return NextResponse.redirect(toURL("/domains?toast=error", req), { status: 303 });
+      }
+      if ((k === "activeStatus" || k === "redirect" || k === "wordpressInstall") && typeof v !== "boolean") {
+        console.error("[domains.update] invalid boolean for", k, v);
+        return NextResponse.redirect(toURL("/domains?toast=error", req), { status: 303 });
+      }
+      if (["hostId","hostTypeId","teamId","domainMailId","hostMailId","cloudflareMailId"].includes(k)) {
+        if (!(typeof v === "string" || v === null)) {
+          console.error("[domains.update] invalid FK value for", k, v);
+          return NextResponse.redirect(toURL("/domains?toast=error", req), { status: 303 });
+        }
+      }
+      if (k === "status" && !["PENDING","ACTIVE","INACTIVE"].includes(String(v))) {
+        console.error("[domains.update] invalid enum for status:", v);
+        return NextResponse.redirect(toURL("/domains?toast=error", req), { status: 303 });
+      }
+      if (k === "price" && !(typeof v === "number" || v === null)) {
+        console.error("[domains.update] invalid type for price:", v);
+        return NextResponse.redirect(toURL("/domains?toast=error", req), { status: 303 });
+      }
+    }
+    if (Object.keys(data).length === 0) {
+      console.warn("[domains.update] empty payload — no fields provided");
+      return NextResponse.redirect(toURL("/domains?toast=error&reason=empty_payload", req), { status: 303 });
+    }
 
     try {
-      await prisma.domain.update({ where: { id }, data });
-    } catch (e: any) {
-      console.error("[domains/update] prisma error", {
-        code: e?.code,
-        message: e?.message,
-        meta: e?.meta,
+      const result = await prisma.domain.update({ where: { id }, data: data as any });
+      console.info("[domains.update] update success for id=", id);
+      return NextResponse.redirect(toURL("/domains", req), { status: 303 });
+    } catch (err: any) {
+      // log prisma-like error shape
+      console.error("[domains.update] prisma.update failed", {
+        code: err?.code,
+        message: err?.message,
+        meta: err?.meta,
+        stack: err?.stack,
       });
-      const msg =
-        e?.code === "P2002"
-          ? "มีโดเมนนี้อยู่แล้ว"
-          : e?.code === "P2025"
-          ? "ไม่พบโดเมนนี้"
-          : e?.message || "อัปเดตไม่สำเร็จ";
-      return NextResponse.redirect(
-        new URL(
-          `${LIST}/${encodeURIComponent(id)}/edit?toast=error&detail=${encodeURIComponent(msg)}`,
-          req.url
-        ),
-        { status: 303 }
-      );
+      return NextResponse.redirect(toURL("/domains?toast=error", req), { status: 303 });
     }
-
-    // revalidate list + view
-    try {
-      revalidatePath(LIST);
-      revalidatePath(`${LIST}/${id}/view`);
-    } catch (e) {
-      console.warn("[domains/update] revalidatePath warn", e);
-    }
-
-    return NextResponse.redirect(
-      new URL(
-        `${LIST}/${encodeURIComponent(id)}/view?toast=updated&detail=${encodeURIComponent(
-          "อัปเดต Domain สำเร็จ"
-        )}`,
-        req.url
-      ),
-      { status: 303 }
-    );
-  } catch (e: any) {
-    console.error("[domains/update] fatal error", e);
-    const detail = encodeURIComponent(e?.message ?? "เกิดข้อผิดพลาด");
-    return NextResponse.redirect(
-      new URL(`${LIST}?toast=error&detail=${detail}`, req.url),
-      { status: 303 }
-    );
+  } catch (err: any) {
+    console.error("[domains.update] handler crashed", {
+      method: (req as any)?.method,
+      url: (req as any)?.url,
+      message: err?.message,
+      stack: err?.stack,
+    });
+    const code = err?.code;
+    if (code === "P2002") return NextResponse.redirect(toURL("/domains?toast=dupe", req), { status: 303 });
+    if (code === "P2003") return NextResponse.redirect(toURL("/domains?toast=fk", req), { status: 303 });
+    return NextResponse.redirect(toURL("/domains?toast=error", req), { status: 303 });
   }
 }

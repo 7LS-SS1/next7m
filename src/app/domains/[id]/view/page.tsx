@@ -2,105 +2,166 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import StatusProbe from "../../_components/StatusProbe";
+import ConfirmSubmit from "@/components/ConfirmSubmit";
+import StatusHistory from "../../_components/StatusHistory";
+import LivePreview from "../../_components/LivePreview";
 
-// Always fetch latest domain details
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-/**
- * In this project, the Next.js type generator sometimes emits `params` as a Promise.
- * To avoid type constraint issues from the generated PageProps, we accept `params: any`
- * and normalize it with `await Promise.resolve(params)`.
- */
-export default async function DomainViewPage({ params }: { params: any }) {
-  const resolved = await Promise.resolve(params);
-  const rawId: string = resolved?.id ?? "";
-  const idOrName = decodeURIComponent(rawId);
+function Chip({ text, tone = "gray" }: { text: string; tone?: "green" | "cyan" | "gray" | "rose" | "yellow" }) {
+  const map: Record<string, string> = {
+    green: "bg-green-600/20 text-green-400",
+    cyan: "bg-cyan-600/20 text-cyan-400",
+    gray: "bg-gray-600/20 text-gray-200",
+    rose: "bg-rose-600/20 text-rose-300",
+    yellow: "bg-yellow-600/20 text-yellow-300",
+  };
+  return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${map[tone]}`}>{text}</span>;
+}
 
-  // Find by id or unique name
-  const domain = await prisma.domain.findFirst({
-    where: {
-      OR: [{ id: idOrName }, { name: idOrName }],
+export default async function DomainViewPage({ params }: { params: Promise<{ id: string }> }) {
+  // โปรเจคนี้ใช้ Dynamic APIs → ต้อง await params
+  const { id } = await params;
+
+  const domain = await prisma.domain.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      note: true,
+      status: true,
+      activeStatus: true,
+      price: true,
+      redirect: true,
+      wordpressInstall: true,
+      registeredAt: true,
+      expiresAt: true,
+      team: { select: { id: true, name: true } },
+      host: { select: { id: true, name: true } },
+      hostType: { select: { id: true, name: true } },
+      domainMail: { select: { id: true, address: true } },
+      hostMail: { select: { id: true, address: true } },
+      cloudflareMail: { select: { id: true, address: true } },
     },
   });
 
   if (!domain) return notFound();
 
-  const rows: { label: string; value: React.ReactNode }[] = [
-    { label: "ชื่อโดเมน", value: domain.name },
-    {
-      label: "สถานะ",
-      value: (
-        <span
-          className={
-            domain.status === "ACTIVE"
-              ? "inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300 text-xs"
-              : domain.status === "INACTIVE"
-              ? "inline-flex items-center gap-1 rounded-full bg-zinc-500/15 px-2 py-0.5 text-zinc-300 text-xs"
-              : "inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300 text-xs"
-          }
-        >
-          ● {domain.status}
-        </span>
-      ),
-    },
-    { label: "หมายเหตุ", value: domain.note ?? "—" },
-    {
-      label: "สร้างเมื่อ",
-      value: new Date(domain.createdAt).toISOString().replace("T", " ").slice(0, 19),
-    },
-    {
-      label: "อัปเดตล่าสุด",
-      value: new Date(domain.updatedAt).toISOString().replace("T", " ").slice(0, 19),
-    },
-  ];
+  const fmt = (d?: Date | null) => (d ? new Date(d).toISOString().slice(0, 10) : "-");
 
   return (
     <div className="grid gap-4">
       {/* Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <nav className="text-sm text-white/60 mb-1" aria-label="Breadcrumb">
-            <ol className="flex items-center gap-1">
-              <li>
-                <Link href="/domains" className="hover:underline">
-                  Domains
-                </Link>
-              </li>
-              <li className="opacity-60">/</li>
-              <li className="text-white truncate max-w-[60vw] sm:max-w-[40vw]" title={domain.name}>
-                {domain.name}
-              </li>
-            </ol>
-          </nav>
-          <h1 className="text-xl sm:text-2xl font-bold">รายละเอียดโดเมน</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link href="/domains" className="rounded-xl border border-white/15 px-4 py-2 text-sm hover:bg-white/5">
+            ย้อนกลับ
+          </Link>
+          <h1 className="text-xl font-bold">{domain.name}</h1>
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href={`/domains/${encodeURIComponent(domain.id)}/edit`}
-            className="rounded-lg border border-white/15 px-3 py-1.5 hover:bg-white/10"
+            href={`/domains/${domain.id}/edit`}
+            className="flex items-center justify-center rounded-lg border border-white/10 w-24 h-9 hover:bg-white/10"
           >
             แก้ไข
           </Link>
-          <Link
-            href="/domains"
-            className="rounded-lg border border-white/15 px-3 py-1.5 hover:bg-white/10"
-          >
-            กลับไปหน้ารายการ
-          </Link>
+          <form method="post" action="/domains/api/delete">
+            <input type="hidden" name="id" value={domain.id} />
+            <ConfirmSubmit
+              confirmText={`ลบโดเมน \"${domain.name}\" ?`}
+              className="flex items-center justify-center rounded-lg border border-white/10 w-24 h-9 hover:bg-white/10 text-rose-300"
+            >
+              ลบ
+            </ConfirmSubmit>
+          </form>
         </div>
       </div>
 
-      {/* Body */}
-      <section className="card p-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {rows.map((r) => (
-            <div key={r.label} className="grid grid-cols-[120px,1fr] gap-3 items-start min-w-0">
-              <div className="text-white/60 text-sm pt-1">{r.label}</div>
-              <div className="min-w-0 break-words">{r.value}</div>
-            </div>
-          ))}
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="card p-4 flex flex-col gap-2">
+          <label className="text-sm opacity-70">ชื่อโดเมน</label>
+          <div className="text-lg font-medium">{domain.name}</div>
+          {/* Live Preview */}
+          {/* <LivePreview initialUrl={`https://${domain.name}`} /> */}
+          {/* <LivePreview initialUrl={domain.name} viewportWidth={1280} aspect={16/4.5} /> */}
+          <LivePreview initialUrl={domain.name} viewportWidth={1920} viewportHeight={1080} />
         </div>
-      </section>
+        <div className="card p-4 flex flex-col gap-2">
+          <label className="text-sm opacity-70">สถานะ</label>
+          <div className="flex items-center gap-2">
+            <Chip text={String(domain.status)} tone="green" />
+            <div className="flex items-center gap-2">
+              <span className="opacity-70 text-xs">Status :</span>
+              <StatusProbe url={`https://${domain.name}`} />
+            </div>
+          </div>
+          <hr className="border-t border-white/10 my-2" />
+          <div className="flex items-center gap-2">
+            <label className="text-sm opacity-70">ทีมรับผิดชอบ</label>
+            <div>
+              <Chip text={domain.team?.name ?? "-"} tone="cyan" />
+            </div>
+          </div>
+          <hr className="border-t border-white/10 my-2" />
+          <label className="text-sm opacity-70">Host / Type</label>
+            <div className="flex flex-wrap gap-2">
+              <Chip text={domain.host?.name ?? "-"} tone="gray" />
+              <Chip text={domain.hostType?.name ?? "-"} tone="gray" />
+          </div>
+          <hr className="border-t border-white/10 my-2" />
+          <div className="w-full">
+            {/* Latency & History */}
+            <StatusHistory url={`https://${domain.name}`} />
+          </div>
+        </div>
+        
+        <div className="card p-4 flex flex-col gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+            <div className="grid gap-3">
+              <Item label="Cloudflare Mail" value={domain.cloudflareMail?.address ?? "-"} />
+              <Item label="Domain Mail" value={domain.domainMail?.address ?? "-"} />
+              <Item label="Host Mail" value={domain.hostMail?.address ?? "-"} />
+              <Item label="ลง WordPress" value={domain.wordpressInstall ? "Yes" : "No"} />
+              <Item label="Redirect" value={domain.redirect ? "On" : "Off"} />
+              <Item label="Active" value={domain.activeStatus ? "Active" : "Inactive"} />
+            </div>
+            <hr className="border-t border-white/10 my-2" />
+            <div className="grid gap-3">
+              <Item label="ลงทะเบียน" value={fmt(domain.registeredAt)} />
+              <Item label="หมดอายุ" value={fmt(domain.expiresAt)} />
+            </div>
+            <hr className="border-t border-white/10 my-2" />
+            <div>
+              <div>
+                <div className="text-sm font-medium mb-1">หมายเหตุ</div>
+                <div className="rounded-xl border border-white/10 p-3 min-h-[64px]">
+                  {domain.note || <span className="opacity-60">-</span>}
+                </div>
+              </div>
+            </div>
+            <div>
+              <Item label="ราคาที่จด" value={
+                typeof domain.price === "number"
+                  ? new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(domain.price) + " บาท"
+                  : "-"
+              } />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Item({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-32 shrink-0 text-sm opacity-70">{label}</div>
+      <div className="text-sm">{value}</div>
     </div>
   );
 }
