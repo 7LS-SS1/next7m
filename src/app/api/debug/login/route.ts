@@ -10,13 +10,12 @@ export async function GET(req: Request) {
 
   const looksLikeEmail = q.includes("@");
   const normalizedEmail = q.toLowerCase();
-  const normalizedPhone = q.replace(/[^\d+]/g, "");
 
   const user = await prisma.user.findFirst({
     where: looksLikeEmail
       ? { email: normalizedEmail }
-      : { OR: [{ phone: normalizedPhone }, { email: normalizedEmail }] },
-    select: { id: true, email: true, phone: true, password: true, createdAt: true },
+      : { OR: [{ id: q }, { email: normalizedEmail }] },
+    select: { id: true, email: true, password: true, createdAt: true },
   });
 
   if (!user) return NextResponse.json({ ok: true, found: false });
@@ -32,7 +31,6 @@ export async function GET(req: Request) {
     found: true,
     id: user.id,
     email: user.email,
-    phone: user.phone,
     algo,
     hashPrefix: prefix,
     createdAt: user.createdAt,

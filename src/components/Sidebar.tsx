@@ -41,6 +41,16 @@ const NAV: NavItem[] = [
     ],
   },
   {
+    title: "Organization",
+    emoji: "🏢",
+    children: [
+      { href: "/organization", title: "บริษัท", emoji: "🏢" },
+      { href: "/organization/announce", title: "ประกาศ", emoji: "🗞️" },
+      { href: "/organization/works", title: "จัดการงาน", emoji: "🧑‍💻" },
+      { href: "/organization/user", title: "สมาชิก", emoji: "👥" },
+    ],
+  },
+  {
     title: "Program/Plugin",
     emoji: "🧩",
     children: [
@@ -126,6 +136,7 @@ export default function Sidebar() {
     () => (expanded ? W_EXPANDED : W_COLLAPSED),
     [expanded]
   );
+  const collapsed = !expanded;
 
   return (
     <>
@@ -149,7 +160,7 @@ export default function Sidebar() {
         style={{ width }}
       >
         {/* แถบบน */}
-        <div className="hidden lg:flex items-center gap-3 px-1 pt-1 pb-2">
+        <div className={`hidden lg:flex items-center ${expanded ? 'justify-start gap-3' : 'justify-center gap-0'} px-2 py-2`}>
           <button
             onClick={() =>
               setExpanded((v) => {
@@ -160,9 +171,9 @@ export default function Sidebar() {
             }
             title="ย่อ/ขยายเมนู"
             aria-label="Toggle sidebar"
-            className="grid size-9 place-items-center rounded-xl hover:bg-white/10"
+            className="grid size-10 place-items-center rounded-2xl hover:bg-white/10 border border-white/10"
           >
-            <Image src={Logo} alt="icon" className="w-10" />
+            <Image src={Logo} alt="UFABET" width={28} height={28} className="h-7 w-7" priority />
           </button>
           {expanded && <span className="font-bold">UFABET</span>}
         </div>
@@ -178,13 +189,13 @@ export default function Sidebar() {
                 <Link
                   key={it.title}
                   href={it.href || "#"}
-                  className={`group flex items-center gap-3 rounded-xl px-0.5 py-0.5 mb-1 transition ${
+                  className={`group flex items-center ${collapsed ? "justify-center" : "gap-3"} rounded-2xl p-1 mb-1 transition ${
                     active
-                      ? "bg-white/[0.08] border border-white/10"
+                      ? "bg-white/[0.08] border border-white/10 ring-1 ring-white/10"
                       : "hover:bg-white/[0.06] border border-transparent"
                   }`}
                 >
-                  <span className="grid size-9 place-items-center rounded-xl bg-white/10 text-lg">
+                  <span className="grid size-10 place-items-center rounded-2xl bg-white/10 text-lg">
                     {it.emoji}
                   </span>
                   {expanded && <span className="font-small">{it.title}</span>}
@@ -201,15 +212,15 @@ export default function Sidebar() {
                 <button
                   type="button"
                   onClick={() => expanded && toggleSection(it.title)}
-                  className={`w-full flex items-center justify-between rounded-xl px-0.5 py-0.5 mb-1 transition ${
+                  className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-between"} rounded-2xl p-1 mb-1 transition ${
                     active
-                      ? "bg-white/[0.08] border border-white/10"
+                      ? "bg-white/[0.08] border border-white/10 ring-1 ring-white/10"
                       : "hover:bg-white/[0.06] border border-transparent"
                   }`}
                   aria-expanded={expanded ? openNow : undefined}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="grid size-9 place-items-center rounded-xl bg-white/10 text-lg">
+                    <span className="grid size-10 place-items-center rounded-2xl bg-white/10 text-lg">
                       {it.emoji}
                     </span>
                     {expanded && (

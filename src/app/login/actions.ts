@@ -23,36 +23,26 @@ export async function loginAction(
   if (!identifier || !password)
     return FAIL("E_INPUT", "กรุณากรอกข้อมูลให้ครบถ้วน");
 
-  // 2) หา user
   const looksLikeEmail = identifier.includes("@");
   const normalizedEmail = identifier.toLowerCase();
-  const normalizedPhone = identifier.replace(/[^\d+]/g, "");
 
-  let user: {
-    id: string;
-    email: string | null;
-    phone: string | null;
-    password: string;
-    role: string;
-  } | null = null;
+  let user: { id: string; email: string; password: string } | null = null;
 
   try {
     user = await prisma.user.findFirst({
       where: looksLikeEmail
         ? { email: normalizedEmail }
-        : { OR: [{ phone: normalizedPhone }, { email: normalizedEmail }] },
+        : { OR: [{ id: identifier }, { email: normalizedEmail }] },
       select: {
         id: true,
         email: true,
-        phone: true,
         password: true,
-        role: true,
       },
     });
   } catch (e: any) {
     return FAIL("E_DB_FIND", e?.message || String(e));
   }
-  if (!user) return FAIL("E_NOT_FOUND", "อีเมล/เบอร์นี้ไม่มีในระบบ");
+  if (!user) return FAIL("E_NOT_FOUND", "ไม่พบบัญชีผู้ใช้ตามข้อมูลที่ระบุ");
 
   let match = false;
   try {

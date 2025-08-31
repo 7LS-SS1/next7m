@@ -7,19 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  phone     String?  @unique
-  role      String   @default("USER")
-
-  @@index([email])
-  @@index([phone])
-}
-
 model Domain {
   id               String        @id @default(cuid())
   name             String        @unique
@@ -85,12 +72,19 @@ model Project {
 }
 
 model Team {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  note      String?
-  domains   Domain[]
+  id             String         @id @default(cuid())
+  name           String         @unique
+  note           String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  // Relations
+  organizationId String?
+  organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  domains        Domain[]
+  announcements  Announcement[]
+
+  @@index([organizationId])
 }
 
 model EmailAccount {
@@ -162,3 +156,92 @@ enum DomainStatus {
   INACTIVE
   PENDING
 }
+
+// ---------- Organizetion ----------
+
+enum AnnouncementType {
+  ANNOUNCE
+  URGENT
+  GENERAL
+}
+
+enum OrgRole {
+  SYSTEM
+  ADMIN
+  MANAGER
+  ASSISTANT_MANAGER
+  STAFF
+}
+
+model Organization {
+  id            String          @id @default(cuid())
+  name          String          @unique
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  announcements Announcement[]
+  works         Work[]
+  members       Membership[]
+  teams         Team[]
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  password     String
+  name         String?
+  role      String   @default("USER")
+  phone        String?
+  avatar       String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  memberships  Membership[]
+
+  assignedWorks Work[]       @relation("AssignedToUser")
+}
+
+model Membership {
+  id             String        @id @default(cuid())
+  userId         String
+  organizationId String
+  role           OrgRole       @default(STAFF)
+  createdAt      DateTime      @default(now())
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+model Announcement {
+  id             String        @id @default(cuid())
+  organizationId String
+  title          String
+  content        String
+  type           AnnouncementType @default(ANNOUNCE)
+  teamId         String?
+  publishedAt    DateTime?     @default(now())
+  createdAt      DateTime      @default(now())
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  team           Team?          @relation(fields: [teamId], references: [id])
+  @@index([organizationId, createdAt])
+  @@index([teamId])
+}
+
+model Work {
+  id             String        @id @default(cuid())
+  organizationId String
+  title          String
+  status         String        @default("PENDING")
+  assignedToId   String?
+  createdAt      DateTime      @default(now())
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedTo     User?         @relation(name: "AssignedToUser", fields: [assignedToId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([assignedToId]) // (แนะนำ) ช่วย query เร็วขึ้นเวลา filter ตามผู้รับผิดชอบ
+}
+
+// ---------- End Organizetion ----------

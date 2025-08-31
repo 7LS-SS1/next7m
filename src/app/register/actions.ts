@@ -32,16 +32,11 @@ export async function registerAction(formData: FormData): Promise<void> {
   const { email, phone, password } = parsed.data;
 
   const exist = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { email },
-        phone ? { phone } : undefined,
-      ].filter(Boolean) as any,
-    },
+    where: { email },
   });
 
   if (exist) {
-    redirect(`/register?toast=error&detail=${encodeURIComponent("อีเมลหรือเบอร์โทรนี้ถูกใช้แล้ว")}`);
+    redirect(`/register?toast=error&detail=${encodeURIComponent("อีเมลนี้ถูกใช้แล้ว")}`);
   }
 
   const hashed = await bcrypt.hash(password, 10);
@@ -49,9 +44,7 @@ export async function registerAction(formData: FormData): Promise<void> {
   await prisma.user.create({
     data: {
       email,
-      phone,
       password: hashed,
-      role: "USER",
     },
   });
 
