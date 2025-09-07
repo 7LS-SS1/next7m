@@ -64,15 +64,9 @@ export default async function Page({
       </Link>
       <AnnounceForm
         action="/organization/api/announce"
-        defaults={{ organizationId: orgId }}
+        defaults={{}}
         redirectTo="/organization/announce"
         submitLabel="บันทึก"
-        teams={teams}
-        types={[
-          { value: 'ANNOUNCE', label: 'ประกาศ' },
-          { value: 'URGENT', label: 'ด่วน!' },
-          { value: 'GENERAL', label: 'ทั่วไป' },
-        ]}
       />
     </main>
   )

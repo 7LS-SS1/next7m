@@ -51,17 +51,14 @@ export default async function EditPage({
         action={`/organization/api/announce/${p.id}`}
         method="POST"
         submitLabel="อัปเดต"
-        showDelete={true}
         deleteAction={`/organization/api/announce/${p.id}`}
         redirectTo={`/organization/announce/${p.id}/view`}
         defaults={{
           title: a.title,
           content: a.content,
-          organizationId: a.organizationId,
           ...((a as any).type ? { type: (a as any).type } : {}),
           ...((a as any).teamId ? { teamId: (a as any).teamId } : {}),
         }}
-        teams={teams}
       />
     </main>
   );

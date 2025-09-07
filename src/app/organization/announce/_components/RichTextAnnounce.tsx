@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
-import Underline from '@tiptap/extension-underline'
+// import Underline from '@tiptap/extension-underline'
 import Image from '@tiptap/extension-image'
 
 /**
@@ -43,10 +43,6 @@ export default function RichTextAnnounce({
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3] },
-        codeBlock: true,
-        blockquote: true,
-        bulletList: true,
-        orderedList: true,
       }),
       // Underline,
       Link.configure({ openOnClick: true, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
@@ -88,7 +84,6 @@ export default function RichTextAnnounce({
       <div className="sticky top-2 z-10 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] p-2 backdrop-blur supports-[backdrop-filter]:bg-white/[0.06]">
         <Button onClick={() => editor?.chain().focus().toggleBold().run()} active={!!editor?.isActive('bold')} title="ตัวหนา"><b>B</b></Button>
         <Button onClick={() => editor?.chain().focus().toggleItalic().run()} active={!!editor?.isActive('italic')} title="ตัวเอียง"><i>I</i></Button>
-        <Button onClick={() => editor?.chain().focus().toggleUnderline().run()} active={!!editor?.isActive('underline')} title="ขีดเส้นใต้"><u>U</u></Button>
         <Divider />
         <Button onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} active={!!editor?.isActive('heading', { level: 2 })} title="หัวข้อ H2">H2</Button>
         <Button onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} active={!!editor?.isActive('heading', { level: 3 })} title="หัวข้อ H3">H3</Button>

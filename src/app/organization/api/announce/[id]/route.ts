@@ -13,8 +13,8 @@ function wantsJSON(req: Request) {
   );
 }
 
-export async function POST(req: Request, ctx: { params: { id: string } }) {
-  const id = ctx?.params?.id;
+export async function POST(req: Request, context: any) {
+  const id = context?.params?.id as string | undefined;
   if (!id) {
     return NextResponse.json({ ok: false, error: "missing id" }, { status: 400 });
   }
@@ -56,8 +56,8 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
   }
 }
 
-export async function DELETE(_req: Request, ctx: { params: { id: string } }) {
-  const id = ctx?.params?.id;
+export async function DELETE(_req: Request, context: any) {
+  const id = context?.params?.id as string | undefined;
   if (!id) {
     return NextResponse.json({ ok: false, error: "missing id" }, { status: 400 });
   }

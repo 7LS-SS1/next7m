@@ -27,7 +27,8 @@ export default function RegisterForm({ action }: Props) {
 
   // ⬇️ React.useActionState (แทน useFormState)
   const actionWithPrev = React.useCallback(async (_prev: FormState, fd: FormData) => action(fd), [action]);
-  const [state, formAction] = (React as any).useActionState<FormState, FormData>(actionWithPrev, null);
+  // React 19: useActionState (types may lag in env)
+  const [state, formAction] = (React as any).useActionState(actionWithPrev, null as FormState);
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
