@@ -1,5 +1,5 @@
 // src/app/managements/teams/[id]/edit/page.tsx
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";

@@ -1,5 +1,5 @@
 // src/app/organization/announce/new/page.tsx
-import { prisma } from '@/lib/db'
+import { prisma } from '@lib/db'
 import AnnounceForm from '../_components/AnnounceForm'
 import Link from 'next/link'
 

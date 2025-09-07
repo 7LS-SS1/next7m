@@ -1,5 +1,5 @@
 // src/app/extensions/programs/[id]/view/page.tsx
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";

@@ -1,6 +1,6 @@
 // src/app/managements/projects/page.tsx
 import Link from "next/link";
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 
 export const dynamic = "force-dynamic";

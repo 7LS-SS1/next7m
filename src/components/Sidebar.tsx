@@ -26,6 +26,7 @@ const NAV: NavItem[] = [
     emoji: "🚀",
     children: [
       { href: "/hosts", title: "Overview", emoji: "📋" },
+      { href: "/hosts/all-hosts", title: "All Host", emoji: "📦" },
       { href: "/hosts/providers", title: "Host Providers", emoji: "🧩" },
       { href: "/hosts/types", title: "Host Types", emoji: "💠" },
     ],

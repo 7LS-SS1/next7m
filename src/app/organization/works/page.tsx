@@ -1,7 +1,7 @@
 
 import WorkToolbar from './_components/WorkToolbar'
 import WorkCard, { type Work } from './_components/WorkCard'
-import { prisma } from '@/lib/db'
+import { prisma } from '@lib/db'
 import Link from 'next/link'
 
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {

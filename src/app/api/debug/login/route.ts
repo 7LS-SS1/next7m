@@ -1,6 +1,6 @@
 // src/app/api/debug/login/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
@@ -15,16 +15,15 @@ export async function GET(req: Request) {
     where: looksLikeEmail
       ? { email: normalizedEmail }
       : { OR: [{ id: q }, { email: normalizedEmail }] },
-    select: { id: true, email: true, password: true, createdAt: true },
+    select: { id: true, email: true, passwordHash: true, createdAt: true },
   });
 
   if (!user) return NextResponse.json({ ok: true, found: false });
 
-  const prefix = user.password.slice(0, 12);
-  const algo =
-    prefix.startsWith("$2") ? "bcrypt" :
-    prefix.startsWith("$argon2") ? "argon2" :
-    "plain_or_unknown";
+  const prefix = (user.passwordHash ?? "").slice(0, 12);
+  const algo = prefix
+    ? (prefix.startsWith("$2") ? "bcrypt" : prefix.startsWith("$argon2") ? "argon2" : "plain_or_unknown")
+    : "unknown";
 
   return NextResponse.json({
     ok: true,

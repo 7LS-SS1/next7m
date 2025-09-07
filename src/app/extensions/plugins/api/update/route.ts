@@ -2,11 +2,11 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import { revalidatePath } from "next/cache";
-import { saveUpload } from "@/lib/upload";
-import { parseBoolean } from "@/lib/zod-helpers";
-import slugify from "@/lib/slugify";
+import { saveUpload } from "@lib/upload";
+import { parseBoolean } from "@lib/zod-helpers";
+import slugify from "@lib/slugify";
 
 // Coerce FormDataEntryValue (or unknown) to a trimmed string or undefined
 function s(input: unknown): string | undefined {

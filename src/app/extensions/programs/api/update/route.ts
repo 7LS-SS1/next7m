@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import slugify from "@/lib/slugify";
+import { prisma } from "@lib/db";
+import slugify from "@lib/slugify";
 import { z } from "zod";
 
 export const runtime = "nodejs";

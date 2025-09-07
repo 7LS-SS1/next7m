@@ -64,6 +64,10 @@ export default function PluginForm({
   const [dragOver, setDragOver] = useState(false);
   const [pickedFile, setPickedFile] = useState<File | null>(null);
   const [pickedIcon, setPickedIcon] = useState<File | null>(null);
+  const [fileUrl, setFileUrl] = useState<string>(defaults?.fileUrl ?? "");
+  const [iconUrl, setIconUrl] = useState<string>(defaults?.iconUrl ?? "");
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadingIcon, setUploadingIcon] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const iconRef = useRef<HTMLInputElement>(null);
   const [descLen, setDescLen] = useState(defaults?.content?.length ?? 0);
@@ -73,8 +77,18 @@ export default function PluginForm({
     setLoading(true);
     const form = e.currentTarget;
     const fd = new FormData(form);
-    if (pickedFile) fd.set("file", pickedFile);
-    if (pickedIcon) fd.set("icon", pickedIcon);
+    // อย่าส่งไฟล์ดิบ ป้องกัน 413 บน Vercel Functions
+    fd.delete("file");
+    fd.delete("icon");
+    // ส่ง URL แทน
+    if (fileUrl) fd.set("fileUrl", fileUrl);
+    if (iconUrl) fd.set("iconUrl", iconUrl);
+
+    if (!fileUrl) {
+      setLoading(false);
+      toast.error("กรุณาอัปโหลดไฟล์ปลั๊กอินก่อนบันทึก");
+      return;
+    }
 
     try {
       const res = await fetch(actionUrl, { method: "POST", body: fd });
@@ -114,14 +128,38 @@ export default function PluginForm({
     iconRef.current?.click();
   }
 
-  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] || null;
     setPickedFile(f);
+    if (!f) return;
+    try {
+      setUploadingFile(true);
+      const url = await uploadToBlob(f);
+      setFileUrl(url);
+      toast.success("อัปโหลดไฟล์ปลั๊กอินสำเร็จ");
+    } catch (err: any) {
+      setFileUrl("");
+      toast.error(err?.message || "อัปโหลดไฟล์ปลั๊กอินไม่สำเร็จ");
+    } finally {
+      setUploadingFile(false);
+    }
   }
 
-  function onIconChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onIconChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] || null;
     setPickedIcon(f);
+    if (!f) return;
+    try {
+      setUploadingIcon(true);
+      const url = await uploadToBlob(f);
+      setIconUrl(url);
+      toast.success("อัปโหลดไอคอนสำเร็จ");
+    } catch (err: any) {
+      setIconUrl("");
+      toast.error(err?.message || "อัปโหลดไอคอนไม่สำเร็จ");
+    } finally {
+      setUploadingIcon(false);
+    }
   }
 
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
@@ -129,6 +167,24 @@ export default function PluginForm({
     setDragOver(false);
     const f = e.dataTransfer.files?.[0];
     if (f) setPickedFile(f);
+  }
+
+  // ====== Upload Helpers ======
+  async function prepareUpload() {
+    const res = await fetch("/api/upload/prepare", { method: "POST" });
+    if (!res.ok) throw new Error("เตรียมอัปโหลดไม่สำเร็จ");
+    const j = await res.json();
+    if (!j?.url) throw new Error("ไม่สามารถออก URL สำหรับอัปโหลดได้");
+    return j.url as string;
+  }
+
+  async function uploadToBlob(file: File) {
+    const uploadUrl = await prepareUpload();
+    const put = await fetch(uploadUrl, { method: "PUT", body: file });
+    if (!put.ok) throw new Error("อัปโหลดไฟล์ไม่สำเร็จ");
+    const meta = await put.json().catch(() => ({}));
+    // รองรับทั้ง meta.url (ใหม่) หรือใช้ uploadUrl (กรณี lib ให้ URL final)
+    return (meta?.url as string) || uploadUrl;
   }
 
   return (
@@ -148,7 +204,7 @@ export default function PluginForm({
         </div>
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || uploadingFile || uploadingIcon}
           className="mt-2 sm:mt-0 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm text-black bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:brightness-95 disabled:opacity-60"
           aria-label="บันทึก Plugin"
         >
@@ -323,6 +379,7 @@ export default function PluginForm({
                   </div>
                   <span className="text-[11px] text-white/60">
                     {(pickedFile.size / 1024 / 1024).toFixed(2)} MB
+                    {uploadingFile ? " • กำลังอัปโหลด..." : fileUrl ? " • อัปโหลดแล้ว" : ""}
                   </span>
                   <span className="text-[11px] text-white/45">
                     คลิกเพื่อเลือกไฟล์ใหม่ หรือวางไฟล์ที่นี่
@@ -414,6 +471,8 @@ export default function PluginForm({
                     </button>
                   )}
                 </div>
+                {uploadingIcon && <p className="text-[11px] text-white/60 mt-1">กำลังอัปโหลดไอคอน...</p>}
+                {!uploadingIcon && iconUrl && <p className="text-[11px] text-emerald-400 mt-1">อัปโหลดไอคอนแล้ว</p>}
                 <Hint>
                   รองรับ PNG / JPG / WEBP / SVG — <br /> ขนาดแนะนำ ≤ 512×512
                 </Hint>
@@ -445,14 +504,16 @@ export default function PluginForm({
             <input
               name="iconUrl"
               placeholder="https://.../icon.png"
-              defaultValue={defaults?.iconUrl ?? ""}
+              value={iconUrl}
+              onChange={(e) => setIconUrl(e.target.value)}
               className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 outline-none transition focus:ring-2 focus:ring-white/10"
             />
             <FieldLabel>ลิงก์ไฟล์ (ถ้าอัปโหลดไว้ที่อื่น)</FieldLabel>
             <input
               name="fileUrl"
               placeholder="https://.../plugin.zip"
-              defaultValue={defaults?.fileUrl ?? ""}
+              value={fileUrl}
+              onChange={(e) => setFileUrl(e.target.value)}
               className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 outline-none transition focus:ring-2 focus:ring-white/10"
             />
           </div>
@@ -463,7 +524,7 @@ export default function PluginForm({
       <div className="mt-5 flex justify-end">
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || uploadingFile || uploadingIcon}
           className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm text-black bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:brightness-95 disabled:opacity-60"
         >
           {loading ? (

@@ -1,9 +1,9 @@
 // src/app/managements/projects/api/delete/route.ts
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import { z } from "zod";
-import { asTrim } from "@/lib/form";
+import { asTrim } from "@lib/form";
 
 const LIST = "/managements/projects";
 

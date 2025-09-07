@@ -1,5 +1,5 @@
 // src/app/extensions/plugins/[id]/edit/page.tsx
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import { notFound } from "next/navigation";
 import PluginForm from "../../_components/PluginForm";
 

@@ -1,7 +1,7 @@
 // NOTE: This file should live at src/app/api/organization/route.ts (move it for proper routing)
 import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
-import { prisma } from '@/lib/db'
+import { prisma } from '@lib/db'
 import { z } from 'zod'
 
 const bodySchema = z.object({

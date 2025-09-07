@@ -1,7 +1,7 @@
 // src/app/extensions/programs/page.tsx
 // Server Component – รายการ Programs แบบ Card Layout + Tabs หมวดหมู่
 import Link from "next/link";
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import ProgramCard from "@/components/programs/ProgramCard";
 
 export const dynamic = "force-dynamic"; // ให้ดึงสดเสมอ

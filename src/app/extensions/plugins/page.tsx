@@ -1,6 +1,6 @@
 // src/app/plugins/page.tsx
 import Link from "next/link";
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import ProgramCard from "@/components/programs/ProgramCard";
 
 export const runtime = "nodejs";

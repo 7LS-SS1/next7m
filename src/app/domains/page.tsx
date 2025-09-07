@@ -1,6 +1,6 @@
 // src/app/domains/page.tsx
 import Link from "next/link";
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 
 export const dynamic = "force-dynamic";
@@ -86,37 +86,23 @@ export default async function DomainsPage({ searchParams }: PageProps) {
                   </Link>
                 </td>
                 <td className="p-3">
-                  <div className="flex gap-2 flex-col">
-                    <div className="flex gap-2">
-                      <label className="font-medium">สถานะ :</label>
-                      <span className="inline-block rounded-full bg-green-600/20 px-2 py-0.5 text-xs font-medium text-green-400">
-                        {r.status}
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <label className="font-medium">Status :</label>
-                      <span className="inline-block rounded-full bg-gray-600/20 px-2 py-0.5 text-xs font-medium text-gray-200">–</span>
-                    </div>
+                  <div className="flex gap-2">
+                    <label className="font-medium">สถานะ :</label>
+                    <span className="inline-block rounded-full bg-green-600/20 px-2 py-0.5 text-xs font-medium text-green-400">
+                      {r.status}
+                    </span>
                   </div>
                 </td>
                 <td className="p-3">
-                  <div className="flex gap-2 flex-col">
-                    <div className="flex gap-2">
-                      <label className="font-medium">ทีมรับผิดชอบ :</label>
-                      <span className="inline-block rounded-full bg-cyan-600/20 px-2 py-0.5 text-xs font-medium text-cyan-400">
-                        {r.team?.name ?? "-"}
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <label className="font-medium">Type :</label>
-                      <span className="inline-block rounded-full bg-gray-600/20 px-2 py-0.5 text-xs font-medium text-gray-200">
-                        {r.hostType?.name ?? "-"}
-                      </span>
-                    </div>
+                  <div className="flex gap-2">
+                    <label className="font-medium">ทีมรับผิดชอบ :</label>
+                    <span className="inline-block rounded-full bg-cyan-600/20 px-2 py-0.5 text-xs font-medium text-cyan-400">
+                      {r.team?.name ?? "-"}
+                    </span>
                   </div>
                 </td>
                 <td className="p-3">
-                  <div className="flex gap-2 flex-col">
+                  <div className="flex flex-col gap-1.5">
                     <div className="flex gap-2">
                       <label className="font-medium">Host :</label>
                       <span className="inline-block rounded-full bg-gray-600/20 px-2 py-0.5 text-xs font-medium text-gray-200">

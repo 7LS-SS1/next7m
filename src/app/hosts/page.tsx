@@ -1,6 +1,6 @@
 // src/app/hosts/page.tsx
 import Link from "next/link";
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";

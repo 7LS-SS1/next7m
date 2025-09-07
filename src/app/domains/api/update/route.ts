@@ -1,6 +1,6 @@
 // src/app/domains/api/update/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import { DomainStatus } from "@prisma/client";
 
 /* -----------------------------------------------------
@@ -41,6 +41,8 @@ const toFloat = (v: unknown) => {
   return Number.isFinite(n) ? (n as number) : undefined;
 };
 
+const IPV4 = /^((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)$/;
+
 const getFD = (fd: FormData, key: string): FormDataEntryValue | null =>
   fd.get(key) ?? fd.get(`1_${key}`) ?? null;
 const hasFD = (fd: FormData, key: string): boolean =>
@@ -70,6 +72,7 @@ const MODEL_FIELDS = new Set([
   "redirect",
   "teamId",
   "wordpressInstall",
+  "ip",
 ]);
 
 /* -----------------------------------------------------
@@ -165,6 +168,31 @@ export async function POST(req: Request) {
     if (hasFD(fd, "hostMailId")) set("hostMailId", trim(getFD(fd, "hostMailId")) || null);
     if (hasFD(fd, "cloudflareMailId")) set("cloudflareMailId", trim(getFD(fd, "cloudflareMailId")) || null);
 
+    // IP (nullable string) — allow clear to null, validate IPv4 when provided
+    if (hasFD(fd, "ip")) {
+      const ipRaw = getFD(fd, "ip");
+      const ipStr = trim(ipRaw);
+      if (ipStr === "") {
+        set("ip", null);
+      } else if (!IPV4.test(ipStr)) {
+        console.error("[domains.update] invalid ip:", safe(ipRaw));
+        return NextResponse.redirect(toURL("/domains?toast=error&reason=invalid_ip", req), { status: 303 });
+      } else {
+        set("ip", ipStr);
+      }
+    }
+
+    // ถ้าเลือก Host (มี hostId ไม่ว่าง) แต่ไม่มี ip (ไม่ส่งมา หรือเป็นค่าว่าง) ให้แจ้งเตือน
+    if (hasFD(fd, "hostId")) {
+      const _host = trim(getFD(fd, "hostId"));
+      const hasIpField = hasFD(fd, "ip");
+      const ipVal = hasIpField ? trim(getFD(fd, "ip")) : "";
+      if (_host && (!hasIpField || ipVal === "")) {
+        console.error("[domains.update] hostId provided but ip missing/empty");
+        return NextResponse.redirect(toURL("/domains?toast=error&reason=ip_required_when_host", req), { status: 303 });
+      }
+    }
+
     console.info("[domains.update] built payload: ", safe(data));
     // Verify keys & types against DB model expectations
     for (const [k, v] of Object.entries(data)) {
@@ -193,6 +221,10 @@ export async function POST(req: Request) {
       }
       if (k === "price" && !(typeof v === "number" || v === null)) {
         console.error("[domains.update] invalid type for price:", v);
+        return NextResponse.redirect(toURL("/domains?toast=error", req), { status: 303 });
+      }
+      if (k === "ip" && !(typeof v === "string" || v === null)) {
+        console.error("[domains.update] invalid type for ip:", v);
         return NextResponse.redirect(toURL("/domains?toast=error", req), { status: 303 });
       }
     }

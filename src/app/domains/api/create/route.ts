@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { DomainStatus } from "@prisma/client";
@@ -39,6 +39,7 @@ const toFloat = (v: unknown) => {
   const n = Number(s);
   return Number.isFinite(n) ? (n as number) : undefined;
 };
+const IPV4 = /^((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)$/;
 
 // ตรงกับ Model Domain ปัจจุบัน
 const Schema = z.object({
@@ -59,6 +60,12 @@ const Schema = z.object({
   hostId: z.preprocess(emptyToUndef, z.string().optional()),
   hostTypeId: z.preprocess(emptyToUndef, z.string().optional()),
   teamId: z.preprocess(emptyToUndef, z.string().optional()),
+
+  // ip (จาก AllHost) - บันทึกลง Domain.ip
+  ip: z
+    .preprocess(emptyToUndef, z.string().optional())
+    .refine((v) => v === undefined || IPV4.test(v), "IP ต้องเป็นรูปแบบ IPv4 (x.x.x.x)")
+    .optional(),
 
   domainMailId: z.preprocess(emptyToUndef, z.string().optional()),
   hostMailId: z.preprocess(emptyToUndef, z.string().optional()),
@@ -90,6 +97,7 @@ export async function POST(req: Request) {
       hostId: fd.get("hostId"),
       hostTypeId: fd.get("hostTypeId"),
       teamId: fd.get("teamId"),
+      ip: fd.get("ip"),
 
       domainMailId: fd.get("domainMailId"),
       hostMailId: fd.get("hostMailId"),
@@ -124,6 +132,18 @@ export async function POST(req: Request) {
 
     const d = parsed.data;
 
+    // ถ้าเลือก Host แล้วไม่ส่ง IP → ถือว่าไม่ผ่าน
+    if (d.hostId && !d.ip) {
+      const msg = "กรุณาเลือก IP สำหรับ Host ที่เลือก";
+      if (accept.includes("application/json")) {
+        return NextResponse.json({ ok: false, error: "invalid_input", field: "ip", message: msg }, { status: 400 });
+      }
+      return NextResponse.redirect(
+        new URL(`${LIST}/new?toast=invalid&detail=${encodeURIComponent(`ip: ${msg}`)}`, req.url),
+        { status: 303 }
+      );
+    }
+
     // registeredAt: ถ้าไม่ส่งมา → วันนี้
     const registeredAt = d.registeredAt ?? new Date();
     // expiresAt: ถ้าส่งมาใช้ตามนั้น, ถ้าไม่ส่งมา +1 ปี ตามนโยบายฟอร์ม
@@ -143,6 +163,7 @@ export async function POST(req: Request) {
       ...(d.redirect !== undefined ? { redirect: d.redirect } : {}),
 
       ...(d.price !== undefined ? { price: d.price } : {}),
+      ...(d.ip !== undefined ? { ip: d.ip } : {}),
 
       // relations (connect เฉพาะที่ส่งมา)
       ...(d.hostId ? { host: { connect: { id: d.hostId } } } : {}),

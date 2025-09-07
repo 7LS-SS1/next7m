@@ -1,5 +1,5 @@
 // src/app/extensions/programs/[id]/edit/page.tsx
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ProgramForm from "../../_components/ProgramForm";

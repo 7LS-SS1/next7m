@@ -1,7 +1,7 @@
 // src/app/domains/[id]/view/page.tsx
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import StatusProbe from "../../_components/StatusProbe";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import StatusHistory from "../../_components/StatusHistory";
@@ -30,6 +30,7 @@ export default async function DomainViewPage({ params }: { params: Promise<{ id:
     select: {
       id: true,
       name: true,
+      ip: true,
       note: true,
       status: true,
       activeStatus: true,
@@ -38,6 +39,8 @@ export default async function DomainViewPage({ params }: { params: Promise<{ id:
       wordpressInstall: true,
       registeredAt: true,
       expiresAt: true,
+      createdAt: true,
+      updatedAt: true,
       team: { select: { id: true, name: true } },
       host: { select: { id: true, name: true } },
       hostType: { select: { id: true, name: true } },
@@ -60,6 +63,10 @@ export default async function DomainViewPage({ params }: { params: Promise<{ id:
             ย้อนกลับ
           </Link>
           <h1 className="text-xl font-bold">{domain.name}</h1>
+        </div>
+        <div className="hidden md:flex items-center gap-2">
+          <Link href={`https://${domain.name}`} className="rounded-lg border border-white/10 px-3 py-1.5 hover:bg-white/10" target="_blank">เปิด HTTPS</Link>
+          <Link href={`http://${domain.name}`} className="rounded-lg border border-white/10 px-3 py-1.5 hover:bg-white/10" target="_blank">เปิด HTTP</Link>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -125,6 +132,7 @@ export default async function DomainViewPage({ params }: { params: Promise<{ id:
               <Item label="Cloudflare Mail" value={domain.cloudflareMail?.address ?? "-"} />
               <Item label="Domain Mail" value={domain.domainMail?.address ?? "-"} />
               <Item label="Host Mail" value={domain.hostMail?.address ?? "-"} />
+              <Item label="IP" value={domain.ip ?? "-"} />
               <Item label="ลง WordPress" value={domain.wordpressInstall ? "Yes" : "No"} />
               <Item label="Redirect" value={domain.redirect ? "On" : "Off"} />
               <Item label="Active" value={domain.activeStatus ? "Active" : "Inactive"} />
@@ -149,6 +157,11 @@ export default async function DomainViewPage({ params }: { params: Promise<{ id:
                   ? new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(domain.price) + " บาท"
                   : "-"
               } />
+            </div>
+            <hr className="border-t border-white/10 my-2" />
+            <div className="grid gap-3">
+              <Item label="สร้างเมื่อ" value={fmt(domain.createdAt)} />
+              <Item label="อัปเดตล่าสุด" value={fmt(domain.updatedAt)} />
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { prisma } from '@/lib/db'
+import { prisma } from '@lib/db'
 
 export default async function OrganizationPage() {
   const organizations = await prisma.organization.findMany({
@@ -7,7 +7,7 @@ export default async function OrganizationPage() {
       id: true,
       name: true,
       _count: {
-        select: { announcements: true, works: true, members: true },
+        select: { announcements: true, works: true, memberships: true },
       },
     },
     orderBy: { createdAt: 'desc' },
@@ -65,7 +65,7 @@ export default async function OrganizationPage() {
                 </div>
                 <div className="rounded-xl border border-white/10 p-2">
                   <div className="text-xs opacity-70">Members</div>
-                  <div className="mt-1 text-base font-semibold">{org._count.members}</div>
+                  <div className="mt-1 text-base font-semibold">{org._count.memberships}</div>
                 </div>
               </div>
 

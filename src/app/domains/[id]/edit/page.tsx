@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import type { Prisma } from "@prisma/client";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";

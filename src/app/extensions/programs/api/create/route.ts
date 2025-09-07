@@ -1,11 +1,11 @@
 // src/app/extensions/programs/api/create/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { saveUpload } from "@/lib/upload";
-import slugify from "@/lib/slugify";
+import { prisma } from "@lib/db";
+import { saveUpload } from "@lib/upload";
+import slugify from "@lib/slugify";
 import { z } from "zod";
-import { RelOrAbsUrl } from "@/lib/zod-helpers";
-import { toBool, toStr } from "@/lib/form";
+import { RelOrAbsUrl } from "@lib/zod-helpers";
+import { toBool, toStr } from "@lib/form";
 
 const BodySchema = z.object({
   name: z.string().min(1, "ต้องใส่ชื่อ"),

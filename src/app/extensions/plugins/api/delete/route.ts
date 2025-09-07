@@ -2,7 +2,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 import { revalidatePath } from "next/cache";
 
 // Coerce FormDataEntryValue (or unknown) to a trimmed string or undefined

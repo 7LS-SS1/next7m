@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 type Props = {
@@ -13,17 +13,18 @@ type Props = {
     id: string;
     name: string;
     note: string | null;
-    status: string; // Prisma enum DomainStatus (ใช้ string เพื่อความเข้ากันได้)
+    status: string; // Prisma enum DomainStatus
     createdAt: string;
     updatedAt: string;
     expiresAt: string; // ISO yyyy-mm-dd
     registeredAt: string; // ISO yyyy-mm-dd
     activeStatus: boolean;
     price: number | null;
-    
+
     cloudflareMailId: string | null;
     domainMailId: string | null;
     hostId: string | null;
+    ip: string | null;
     hostMailId: string | null;
     hostTypeId: string | null;
     redirect: boolean;
@@ -32,6 +33,9 @@ type Props = {
   }>;
   action?: string | ((formData: FormData) => void | Promise<void>);
 };
+
+const IPV4 =
+  /^((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)$/;
 
 export default function DomainForm({
   hosts = [],
@@ -49,20 +53,26 @@ export default function DomainForm({
     defaults?.expiresAt ?? calcPlusOneYear(initialRegistered)
   );
 
+  // --- Host & IP (from AllHost) ---
+  const [hostId, setHostId] = useState<string>(defaults?.hostId ?? "");
+  const [ip, setIp] = useState<string>(defaults?.ip ?? "");
+  const [ipOptions, setIpOptions] = useState<{ id: string; ip: string; title: string }[]>([]);
+  const [ipLoading, setIpLoading] = useState(false);
+  const [ipError, setIpError] = useState<string | null>(null);
+  const [manualIp, setManualIp] = useState<boolean>(false);
+  const abortRef = useRef<AbortController | null>(null);
+
   // helper: เพิ่ม 1 ปีจากวันที่รูปแบบ YYYY-MM-DD
   function calcPlusOneYear(ymd: string): string {
     if (!ymd) return "";
     const [y, m, d] = ymd.split("-").map((v) => parseInt(v, 10));
     if (!y || !m || !d) return "";
     const base = new Date(Date.UTC(y, m - 1, d));
-    // เพิ่ม 1 ปีแบบคงวัน/เดือน ถ้าข้าม (เช่น 29 ก.พ.) ให้ถอยมาวันสุดท้ายของเดือน
     const targetYear = y + 1;
     const target = new Date(Date.UTC(targetYear, m - 1, 1));
-    // วันสูงสุดของเดือนปลายทาง
     const lastDay = new Date(Date.UTC(targetYear, m, 0)).getUTCDate();
     const day = Math.min(d, lastDay);
     target.setUTCDate(day);
-    // สร้างเป็น YYYY-MM-DD
     const yy = target.getUTCFullYear();
     const mm = String(target.getUTCMonth() + 1).padStart(2, "0");
     const dd = String(target.getUTCDate()).padStart(2, "0");
@@ -87,6 +97,49 @@ export default function DomainForm({
     [teams]
   );
 
+  // โหลด IPs จาก AllHost ตาม Host ที่เลือก (รองรับ edit preload และ abort)
+  useEffect(() => {
+    setIpError(null);
+
+    // reset เมื่อเปลี่ยน host
+    setIpOptions([]);
+    setIp("");
+    setManualIp(false);
+
+    if (!hostId) return;
+
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setIpLoading(true);
+    fetch(`/api/hosts/${hostId}/ips`, { signal: controller.signal, cache: "no-store" })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(await r.text());
+        return r.json();
+      })
+      .then((res) => {
+        const rows: { id: string; ip: string; title: string }[] = res?.data ?? [];
+        // ถ้ามีค่า IP เดิมจาก defaults แต่ไม่อยู่ในลิสต์ → เติมเข้าไปเพื่อให้เลือกได้
+        const current = (defaults?.hostId === hostId && defaults?.ip) ? defaults.ip : null;
+        const exists = current ? rows.some((x) => x.ip === current) : false;
+        const final = exists || !current ? rows : [{ id: "current", ip: current!, title: "ปัจจุบัน (จากข้อมูลเดิม)" }, ...rows];
+        setIpOptions(final);
+        // ถ้ายังไม่มี ip ให้ auto select อันแรก (หรือคงว่างถ้าไม่มีตัวเลือก)
+        if (!ip && final.length > 0) setIp(final[0].ip);
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        setIpError("โหลดรายการ IP ไม่สำเร็จ");
+      })
+      .finally(() => {
+        setIpLoading(false);
+      });
+
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostId]);
+
   const isServerAction = typeof action === "function";
   const formProps: React.FormHTMLAttributes<HTMLFormElement> = {
     action: action as any,
@@ -97,6 +150,8 @@ export default function DomainForm({
     formProps.method = "post";
   }
 
+  const ipIsValid = !ip || IPV4.test(ip); // ฟอร์มยังให้ submit ได้ ถ้าจะบังคับ ใช้ required ร่วม
+
   return (
     <form {...formProps}>
       {/* hidden meta for update & boolean touched flags */}
@@ -104,6 +159,9 @@ export default function DomainForm({
       <input type="hidden" name="activeStatus__touched" value="1" />
       <input type="hidden" name="redirect__touched" value="1" />
       <input type="hidden" name="wordpressInstall__touched" value="1" />
+
+      {/* Canonical submission value */}
+      <input type="hidden" name="ip" value={ip} />
 
       {/* Header */}
       <header className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -118,8 +176,17 @@ export default function DomainForm({
           >
             ย้อนกลับ
           </Link>
-          <button type="reset" className="rounded-xl border border-white/15 px-4 py-2 text-sm hover:bg-white/5">ล้างฟอร์ม</button>
-          <button type="submit" className="btn-primary rounded-xl px-4 py-2 text-sm font-semibold text-black bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:brightness-95">{isEdit ? "บันทึก" : "สร้าง"}</button>
+          <button type="reset" className="rounded-xl border border-white/15 px-4 py-2 text-sm hover:bg-white/5" onClick={() => { setHostId(defaults?.hostId ?? ""); setIp(defaults?.ip ?? ""); }}>
+            ล้างฟอร์ม
+          </button>
+          <button
+            type="submit"
+            className="btn-primary rounded-xl px-4 py-2 text-sm font-semibold text-black bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:brightness-95 disabled:opacity-60"
+            disabled={Boolean(hostId) && (!ip || !ipIsValid)}
+            title={Boolean(hostId) && (!ip || !ipIsValid) ? "กรุณาเลือก/กรอก IP ให้ถูกต้อง" : undefined}
+          >
+            {isEdit ? "บันทึก" : "สร้าง"}
+          </button>
         </div>
       </header>
 
@@ -192,7 +259,85 @@ export default function DomainForm({
           </Field>
 
           <Field label="Host">
-            <Select name="hostId" options={hostOptions} defaultValue={defaults?.hostId ?? undefined} />
+            <select
+              title="Host"
+              name="hostId"
+              value={hostId}
+              onChange={(e) => setHostId(e.target.value)}
+              className="input"
+            >
+              <option value="">— เลือก —</option>
+              {hostOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field
+            label="IP (จาก AllHost)"
+            hint={
+              hostId
+                ? ipLoading
+                  ? "กำลังโหลด IP..."
+                  : ipError
+                    ? ipError
+                    : ipOptions.length
+                      ? undefined
+                      : "ไม่มี IP สำหรับ Host นี้"
+                : "กรุณาเลือก Host ก่อน"
+            }
+            required
+          >
+            {!manualIp ? (
+              <div className="flex items-center gap-2">
+                <select
+                  title="IP"
+                  value={ip}
+                  onChange={(e) => setIp(e.target.value)}
+                  className="input flex-1"
+                  disabled={!hostId || ipLoading || ipOptions.length === 0}
+                  aria-invalid={Boolean(hostId) && !ipIsValid}
+                >
+                  <option value="">{ipLoading ? "กำลังโหลด..." : ipOptions.length ? "— เลือก —" : "ไม่มี IP"}</option>
+                  {ipOptions.map((row) => (
+                    <option key={`${row.id}-${row.ip}`} value={row.ip}>
+                      {row.ip} {row.title ? `(${row.title})` : ""}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="rounded-xl border border-white/15 px-3 py-2 text-sm hover:bg-white/5"
+                  onClick={() => { setManualIp(true); }}
+                >
+                  ป้อนเอง
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  title="IP"
+                  value={ip}
+                  onChange={(e) => setIp(e.target.value)}
+                  className="input flex-1"
+                  placeholder="เช่น 203.0.113.10"
+                  inputMode="numeric"
+                  pattern={IPV4.source}
+                />
+                <button
+                  type="button"
+                  className="rounded-xl border border-white/15 px-3 py-2 text-sm hover:bg-white/5"
+                  onClick={() => { setManualIp(false); setIp(""); }}
+                >
+                  เลือกจากลิสต์
+                </button>
+              </div>
+            )}
+            {Boolean(hostId) && !ipIsValid && (
+              <p className="mt-1 text-xs text-red-400">รูปแบบ IP ต้องเป็น IPv4 (x.x.x.x)</p>
+            )}
           </Field>
 
           <Field label="Host Type">
@@ -258,6 +403,7 @@ export default function DomainForm({
           />
         </div>
       </Section>
+
       {/* Footer Actions */}
       <div className="mt-6 flex items-center justify-end gap-2">
         <Link
@@ -266,8 +412,27 @@ export default function DomainForm({
         >
           ย้อนกลับ
         </Link>
-        <button type="reset" className="rounded-xl border border-white/15 px-4 py-2 text-sm hover:bg-white/5">ล้างฟอร์ม</button>
-        <button type="submit" className="btn-primary rounded-xl px-4 py-2 text-sm font-semibold text-black bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:brightness-95">{isEdit ? "บันทึก" : "สร้าง"}</button>
+        <button
+          type="reset"
+          className="rounded-xl border border-white/15 px-4 py-2 text-sm hover:bg-white/5"
+          onClick={() => {
+            setHostId(defaults?.hostId ?? "");
+            setIp(defaults?.ip ?? "");
+            setManualIp(false);
+            setIpOptions([]);
+            setIpError(null);
+          }}
+        >
+          ล้างฟอร์ม
+        </button>
+        <button
+          type="submit"
+          className="btn-primary rounded-xl px-4 py-2 text-sm font-semibold text-black bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:brightness-95 disabled:opacity-60"
+          disabled={Boolean(hostId) && (!ip || !ipIsValid)}
+          title={Boolean(hostId) && (!ip || !ipIsValid) ? "กรุณาเลือก/กรอก IP ให้ถูกต้อง" : undefined}
+        >
+          {isEdit ? "บันทึก" : "สร้าง"}
+        </button>
       </div>
     </form>
   );

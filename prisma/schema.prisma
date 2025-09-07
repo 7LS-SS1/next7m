@@ -7,6 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/* ---------------- Domain ---------------- */
 model Domain {
   id               String        @id @default(cuid())
   name             String        @unique
@@ -16,8 +17,9 @@ model Domain {
   updatedAt        DateTime      @updatedAt
   expiresAt        DateTime      @default(dbgenerated("(now() + '1 year'::interval)"))
   registeredAt     DateTime      @default(now())
-  activeStatus     Boolean?       @default(true)
+  activeStatus     Boolean       @default(true)
   price            Float?
+  ip               String?       // ✅ เก็บ IP ที่เลือกมาจาก AllHost
   cloudflareMailId String?
   domainMailId     String?
   hostId           String?
@@ -26,12 +28,13 @@ model Domain {
   redirect         Boolean       @default(false)
   teamId           String?
   wordpressInstall Boolean       @default(false)
-  cloudflareMail   EmailAccount? @relation("CloudflareMail", fields: [cloudflareMailId], references: [id])
-  domainMail       EmailAccount? @relation("DomainMail", fields: [domainMailId], references: [id])
-  host             HostProvider? @relation(fields: [hostId], references: [id])
-  hostMail         EmailAccount? @relation("HostMail", fields: [hostMailId], references: [id])
-  hostType         HostType?     @relation(fields: [hostTypeId], references: [id])
-  team             Team?         @relation(fields: [teamId], references: [id])
+
+  cloudflareMail   EmailAccount? @relation("CloudflareMail", fields: [cloudflareMailId], references: [id], onDelete: SetNull)
+  domainMail       EmailAccount? @relation("DomainMail",     fields: [domainMailId],     references: [id], onDelete: SetNull)
+  host             HostProvider? @relation(                   fields: [hostId],          references: [id], onDelete: SetNull)
+  hostMail         EmailAccount? @relation("HostMail",       fields: [hostMailId],       references: [id], onDelete: SetNull)
+  hostType         HostType?     @relation(                   fields: [hostTypeId],      references: [id], onDelete: SetNull)
+  team             Team?         @relation(                   fields: [teamId],          references: [id], onDelete: SetNull)
 
   @@index([name])
   @@index([status])
@@ -43,15 +46,53 @@ model Domain {
   @@index([hostMailId])
   @@index([cloudflareMailId])
   @@index([teamId])
+  @@index([ip])
+}
+
+model AllHost {
+  id             String       @id @default(cuid())
+  title          String
+  ip             String
+  note           String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  createdOn      DateTime?
+
+  hostProviderId String?
+  hostProvider   HostProvider? @relation(fields: [hostProviderId], references: [id], onDelete: SetNull)
+
+  emailId        String?
+  email          EmailAccount? @relation(fields: [emailId], references: [id], onDelete: SetNull)
+
+  @@index([hostProviderId])
+  @@index([emailId])
+  @@index([createdOn])
+  @@unique([hostProviderId, ip]) // กันซ้ำ IP ต่อ Host เดียวกัน (null hostProviderId อนุญาตซ้ำได้)
 }
 
 model HostProvider {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String    @id @default(cuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   note      String?
   domains   Domain[]
+  
+  allHosts  AllHost[]
+}
+
+model EmailAccount {
+  id                  String    @id @default(cuid())
+  address             String    @unique
+  provider            String
+  note                String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  domainsAsCloudflare Domain[]  @relation("CloudflareMail")
+  domainsAsDomainMail Domain[]  @relation("DomainMail")
+  domainsAsHostMail   Domain[]  @relation("HostMail")
+  
+  allHosts            AllHost[]
 }
 
 model HostType {
@@ -71,6 +112,7 @@ model Project {
   updatedAt DateTime @updatedAt
 }
 
+/* ---------------- Team/Org ---------------- */
 model Team {
   id             String         @id @default(cuid())
   name           String         @unique
@@ -78,7 +120,6 @@ model Team {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  // Relations
   organizationId String?
   organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   domains        Domain[]
@@ -87,18 +128,8 @@ model Team {
   @@index([organizationId])
 }
 
-model EmailAccount {
-  id                  String   @id @default(cuid())
-  address             String   @unique
-  provider            String
-  note                String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  domainsAsCloudflare Domain[] @relation("CloudflareMail")
-  domainsAsDomainMail Domain[] @relation("DomainMail")
-  domainsAsHostMail   Domain[] @relation("HostMail")
-}
 
+/* ---------------- Program/Plugin ---------------- */
 model Program {
   id            String   @id @default(cuid())
   name          String   @db.VarChar(200)
@@ -143,6 +174,7 @@ model Plugin {
   @@index([updatedAt])
 }
 
+/* ---------------- Enums ---------------- */
 enum Role {
   SYSTEM
   ADMIN
@@ -157,91 +189,91 @@ enum DomainStatus {
   PENDING
 }
 
-// ---------- Organizetion ----------
-
 enum AnnouncementType {
   ANNOUNCE
   URGENT
   GENERAL
 }
 
-enum OrgRole {
-  SYSTEM
-  ADMIN
-  MANAGER
-  ASSISTANT_MANAGER
-  STAFF
-}
-
+/* ---------------- Organization ---------------- */
 model Organization {
-  id            String          @id @default(cuid())
-  name          String          @unique
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  announcements Announcement[]
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships   Membership[]
   works         Work[]
-  members       Membership[]
   teams         Team[]
+  users         User[]          @relation("UserOrganization")
+  announcements Announcement[]
 }
 
+/* ---------------- User/Auth ---------------- */
 model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  password     String
-  name         String?
-  role      String   @default("USER")
-  phone        String?
-  avatar       String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  memberships  Membership[]
+  id              String   @id @default(cuid())
+  email           String   @unique
+  passwordHash    String   @map("password") // <- ใช้คอลัมน์เดิมชื่อ password
+  name            String?
+  role            Role     @default(STAFF)  // <- เพิ่ม role
 
-  assignedWorks Work[]       @relation("AssignedToUser")
-}
+  organizationId  String?
+  organization    Organization? @relation(name: "UserOrganization", fields: [organizationId], references: [id])
 
-model Membership {
-  id             String        @id @default(cuid())
-  userId         String
-  organizationId String
-  role           OrgRole       @default(STAFF)
-  createdAt      DateTime      @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships     Membership[]
+  assignedWorks   Work[]     @relation("WorkAssignedTo")
 
-  @@unique([userId, organizationId])
   @@index([organizationId])
 }
 
-model Announcement {
-  id             String        @id @default(cuid())
+/* สมาชิกในองค์กร (แอประบุ membership.role ไว้) */
+model Membership {
+  id             String   @id @default(cuid())
   organizationId String
+  userId         String
+  role           Role     @default(STAFF) // <- เพิ่มเพื่อแก้ P2022: column not exists
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, userId]) // กันซ้ำคนเดิมในองค์กรเดียวกัน
+  @@index([userId])
+  @@index([organizationId])
+}
+
+/* ---------------- Announcement/Work ---------------- */
+model Announcement {
+  id             String   @id @default(cuid())
   title          String
   content        String
-  type           AnnouncementType @default(ANNOUNCE)
-  teamId         String?
-  publishedAt    DateTime?     @default(now())
-  createdAt      DateTime      @default(now())
-
+  type           AnnouncementType @default(ANNOUNCE) // <- ใช้ enum ให้มีหมวด
+  organizationId String
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  team           Team?          @relation(fields: [teamId], references: [id])
+
+  teamId         String?
+  team           Team?         @relation(fields: [teamId], references: [id])
+
+  updatedAt      DateTime @updatedAt          // <- ลบ @default(now())
+  createdAt      DateTime @default(now())
+
   @@index([organizationId, createdAt])
   @@index([teamId])
 }
 
 model Work {
-  id             String        @id @default(cuid())
-  organizationId String
-  title          String
-  status         String        @default("PENDING")
-  assignedToId   String?
-  createdAt      DateTime      @default(now())
+  id              String   @id @default(cuid())
+  title           String
+  organizationId  String
+  assignedToId    String?
+  status          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  assignedTo     User?         @relation(name: "AssignedToUser", fields: [assignedToId], references: [id])
-
-  @@index([organizationId, createdAt])
-  @@index([assignedToId]) // (แนะนำ) ช่วย query เร็วขึ้นเวลา filter ตามผู้รับผิดชอบ
+  assignedTo      User?    @relation("WorkAssignedTo", fields: [assignedToId], references: [id])
+  organization    Organization @relation(fields: [organizationId], references: [id])
 }
-
-// ---------- End Organizetion ----------

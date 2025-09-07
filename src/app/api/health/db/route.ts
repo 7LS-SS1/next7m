@@ -1,6 +1,6 @@
 // src/app/api/health/db/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma } from "@lib/db";
 
 export const runtime = "nodejs";
 
