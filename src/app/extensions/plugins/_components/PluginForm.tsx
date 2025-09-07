@@ -15,7 +15,6 @@ const CATEGORIES = [
   "Misc.",
 ] as const;
 
-// ====== Types ======
 type Props = {
   defaults?: {
     id?: string;
@@ -31,10 +30,10 @@ type Props = {
     featured?: boolean;
   };
   actionUrl: string; // `/extensions/plugins/api/create` หรือ `/extensions/plugins/api/update`
-  redirectTo?: string; // path สำหรับ redirect หลังบันทึกสำเร็จ (ค่าเริ่มต้น: "/extensions/plugins")
+  redirectTo?: string; // path หลังบันทึกสำเร็จ (ค่าเริ่มต้น: "/extensions/plugins")
 };
 
-// ====== Helpers ======
+// ====== Helpers (UI) ======
 function FieldLabel({
   children,
   required,
@@ -43,7 +42,7 @@ function FieldLabel({
   required?: boolean;
 }) {
   return (
-    <label className="block text-xs font-medium tracking-wide text-white/70 mb-1">
+    <label className="mb-1 block text-xs font-medium tracking-wide text-white/70">
       {children}
       {required && <span className="text-amber-400"> *</span>}
     </label>
@@ -54,65 +53,91 @@ function Hint({ children }: { children: React.ReactNode }) {
   return <p className="mt-1 text-[11px] text-white/45">{children}</p>;
 }
 
+// ====== Component ======
 export default function PluginForm({
   defaults,
   actionUrl,
   redirectTo = "/extensions/plugins",
 }: Props) {
   const router = useRouter();
+
   const [loading, setLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+
+  // เก็บไฟล์ที่ “ลากมา” เพื่อโชว์ชื่อ/ขนาดเท่านั้น (จะไม่อัปโหลด)
   const [pickedFile, setPickedFile] = useState<File | null>(null);
   const [pickedIcon, setPickedIcon] = useState<File | null>(null);
+
+  // ฟอร์มโหมด URL เท่านั้น
   const [fileUrl, setFileUrl] = useState<string>(defaults?.fileUrl ?? "");
   const [iconUrl, setIconUrl] = useState<string>(defaults?.iconUrl ?? "");
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const [uploadingIcon, setUploadingIcon] = useState(false);
+
   const fileRef = useRef<HTMLInputElement>(null);
   const iconRef = useRef<HTMLInputElement>(null);
+
   const [descLen, setDescLen] = useState(defaults?.content?.length ?? 0);
 
+  // ====== Submit ======
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
-    const form = e.currentTarget;
-    const fd = new FormData(form);
-    // อย่าส่งไฟล์ดิบ ป้องกัน 413 บน Vercel Functions
-    fd.delete("file");
-    fd.delete("icon");
-    // ส่ง URL แทน
-    if (fileUrl) fd.set("fileUrl", fileUrl);
-    if (iconUrl) fd.set("iconUrl", iconUrl);
+    if (loading) return;
 
-    if (!fileUrl) {
-      setLoading(false);
-      toast.error("กรุณาอัปโหลดไฟล์ปลั๊กอินก่อนบันทึก");
+    const form = e.currentTarget;
+
+    // ✅ validate ชื่อ + URL ไฟล์
+    const nameInput = form.querySelector<HTMLInputElement>('input[name="name"]');
+    if (!nameInput?.value.trim()) {
+      toast.error("กรอกชื่อปลั๊กอินก่อนบันทึก");
+      nameInput?.focus();
       return;
     }
+    // if (!fileUrl.trim()) {
+    //   toast.error("กรุณาวางลิงก์ไฟล์ปลั๊กอิน (fileUrl) ก่อนบันทึก");
+    //   return;
+    // }
+
+    setLoading(true);
+    const fd = new FormData(form);
+
+    // ❌ ไม่ส่งไฟล์ดิบขึ้น API
+    fd.delete("file");
+    fd.delete("icon");
+    // ✅ ส่งเฉพาะ URL
+    fd.set("fileUrl", fileUrl.trim());
+    if (iconUrl.trim()) fd.set("iconUrl", iconUrl.trim());
 
     try {
       const res = await fetch(actionUrl, { method: "POST", body: fd });
-      const payload = await res.json().catch(() => ({}));
+      const payload = await res.json().catch(() => ({} as any));
+
       if (!res.ok || payload?.ok === false) {
-        throw new Error(
-          payload?.message || payload?.error || "บันทึกไม่สำเร็จ"
-        );
+        throw new Error(payload?.message || payload?.error || "บันทึกไม่สำเร็จ");
       }
-      toast.success("บันทึกสำเร็จ 🎉");
+
+      const createdId = (payload?.data?.id || payload?.program?.id || payload?.plugin?.id) as
+        | string
+        | undefined;
+
+      toast.success("บันทึกสำเร็จ");
       form.reset();
       setPickedFile(null);
       setPickedIcon(null);
       setDescLen(0);
 
-      // ย้ายไปหน้า list พร้อมส่งพารามิเตอร์ให้หน้า list แสดง toast อีกครั้ง (กรณีมี ToastMount อ่านค่าจาก searchParam)
       const url = new URL(redirectTo, window.location.origin);
-      // แนบสเตตัสแบบสั้น ๆ ให้ Toaster ด้าน list ตัดสินใจข้อความ
-      url.searchParams.set("toast", payload?.status ?? "created"); // created/updated
-      // แนบข้อความก็ได้ (optional)
+      url.searchParams.set("toast", payload?.status ?? "created");
       if (payload?.message) url.searchParams.set("msg", payload.message);
-
       router.push(url.pathname + "?" + url.searchParams.toString());
-      router.refresh(); // ให้ list รีโหลดข้อมูลใหม่
+      router.refresh();
+
+      // ถ้ายังมี flow ประมวลผลเบื้องหลังจาก URL ให้เรียกต่อ (optional)
+      if (createdId) {
+        fetch("/extensions/plugins/api/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: createdId }),
+        }).catch(() => {});
+      }
     } catch (err: any) {
       toast.error(err?.message || "เกิดข้อผิดพลาด");
     } finally {
@@ -128,108 +153,73 @@ export default function PluginForm({
     iconRef.current?.click();
   }
 
-  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  // ====== DragDrop / File Picker (แสดงผลอย่างเดียว ไม่อัปโหลด) ======
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] || null;
     setPickedFile(f);
-    if (!f) return;
-    try {
-      setUploadingFile(true);
-      const url = await uploadToBlob(f);
-      setFileUrl(url);
-      toast.success("อัปโหลดไฟล์ปลั๊กอินสำเร็จ");
-    } catch (err: any) {
-      setFileUrl("");
-      toast.error(err?.message || "อัปโหลดไฟล์ปลั๊กอินไม่สำเร็จ");
-    } finally {
-      setUploadingFile(false);
+    if (f) {
+      toast.message("เลือกไฟล์สำเร็จ", {
+        description: "โหมด URL เท่านั้น: กรุณาวางลิงก์ไฟล์ในช่องด้านล่าง",
+      });
     }
   }
 
-  async function onIconChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function onIconChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] || null;
     setPickedIcon(f);
-    if (!f) return;
-    try {
-      setUploadingIcon(true);
-      const url = await uploadToBlob(f);
-      setIconUrl(url);
-      toast.success("อัปโหลดไอคอนสำเร็จ");
-    } catch (err: any) {
-      setIconUrl("");
-      toast.error(err?.message || "อัปโหลดไอคอนไม่สำเร็จ");
-    } finally {
-      setUploadingIcon(false);
+    if (f) {
+      toast.message("เลือกรูปไอคอนสำเร็จ", {
+        description: "โหมด URL เท่านั้น: กรุณาวางลิงก์ไอคอนในช่องด้านล่าง (ถ้ามี)",
+      });
     }
   }
 
-  function onDrop(e: React.DragEvent<HTMLDivElement>) {
+  async function onDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setDragOver(false);
-    const f = e.dataTransfer.files?.[0];
-    if (f) setPickedFile(f);
-  }
 
-  // ====== Upload Helpers ======
-  async function prepareUpload() {
-    const res = await fetch("/api/upload/prepare", { method: "POST" });
-    if (!res.ok) throw new Error("เตรียมอัปโหลดไม่สำเร็จ");
-    const j = await res.json();
-    if (!j?.url) throw new Error("ไม่สามารถออก URL สำหรับอัปโหลดได้");
-    return j.url as string;
-  }
+    // รองรับลาก “ลิงก์ URL” เพื่อเติม fileUrl อัตโนมัติ
+    const uri = e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain");
+    if (uri && /^https?:\/\//i.test(uri.trim())) {
+      setFileUrl(uri.trim());
+      toast.success("เติม URL จากการลากลิงก์สำเร็จ");
+      return;
+    }
 
-  async function uploadToBlob(file: File) {
-    const uploadUrl = await prepareUpload();
-    const put = await fetch(uploadUrl, { method: "PUT", body: file });
-    if (!put.ok) throw new Error("อัปโหลดไฟล์ไม่สำเร็จ");
-    const meta = await put.json().catch(() => ({}));
-    // รองรับทั้ง meta.url (ใหม่) หรือใช้ uploadUrl (กรณี lib ให้ URL final)
-    return (meta?.url as string) || uploadUrl;
+    // หากเป็นไฟล์ ให้แสดงชื่อ/ขนาดเป็น reference เฉย ๆ
+    const f = e.dataTransfer.files?.[0] || null;
+    setPickedFile(f);
+    if (f) {
+      toast.message("ลากไฟล์เข้ามาแล้ว", {
+        description: "โหมด URL เท่านั้น: กรุณาวางลิงก์ไฟล์ในช่องด้านล่าง",
+      });
+    }
   }
 
   return (
     <form
       onSubmit={onSubmit}
-      className="card mx-auto w-full max-w-4xl rounded-2xl border border-white/10 bg-[rgb(var(--card))]/70 p-5 backdrop-blur"
+      className="card mx-auto w/full max-w-4xl rounded-2xl border border-white/10 bg-[rgb(var(--card))]/70 p-5 backdrop-blur"
     >
       {/* Header */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base sm:text-lg font-semibold">
-            สร้าง / แก้ไข Plugin
-          </h2>
+          <h2 className="text-base sm:text-lg font-semibold">สร้าง / แก้ไข Plugin</h2>
           <p className="text-xs text-white/50">
-            กรอกข้อมูลให้ครบถ้วนเพื่อการค้นหาและติดตั้งที่ง่ายขึ้น
+            โหมด URL เท่านั้น — ยังมี Drag & Drop เพื่อช่วยระบุไฟล์/ลิงก์ แต่จะไม่อัปโหลดไฟล์อัตโนมัติ
           </p>
         </div>
         <button
           type="submit"
-          disabled={loading || uploadingFile || uploadingIcon}
-          className="mt-2 sm:mt-0 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm text-black bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:brightness-95 disabled:opacity-60"
+          disabled={loading || !fileUrl.trim()}
+          className="mt-2 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 px-4 py-2 text-sm text-black hover:brightness-95 disabled:opacity-60 sm:mt-0"
           aria-label="บันทึก Plugin"
         >
           {loading ? (
             <span className="inline-flex items-center gap-2">
-              <svg
-                className="h-4 w-4 animate-spin"
-                viewBox="0 0 24 24"
-                aria-hidden
-              >
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  className="opacity-20"
-                ></circle>
-                <path
-                  d="M22 12a10 10 0 0 1-10 10"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  className="opacity-80"
-                ></path>
+              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" aria-hidden>
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-20" />
+                <path d="M22 12a10 10 0 0 1-10 10" fill="none" stroke="currentColor" strokeWidth="3" className="opacity-80" />
               </svg>
               กำลังบันทึก...
             </span>
@@ -252,7 +242,7 @@ export default function PluginForm({
               name="name"
               placeholder="เช่น: Elementor Pro"
               defaultValue={defaults?.name}
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 outline-none transition focus:ring-2 focus:ring-white/10"
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 outline-none transition focus:border-white/20 focus:ring-2 focus:ring-white/10"
               required
             />
             <Hint>ชื่อปลั๊กอินที่จะใช้แสดงผลในหน้า List / View</Hint>
@@ -299,7 +289,7 @@ export default function PluginForm({
               <FieldLabel>หมวดหมู่ (Category)</FieldLabel>
               <select
                 name="category"
-                defaultValue={defaults?.category ?? "Misc"}
+                defaultValue={defaults?.category ?? "Misc."}
                 className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 outline-none transition focus:ring-2 focus:ring-white/10"
               >
                 {CATEGORIES.map((c) => (
@@ -330,8 +320,9 @@ export default function PluginForm({
 
         {/* Right column */}
         <section className="grid gap-4">
+          {/* DragDrop กล่องใหญ่ — ไม่อัปโหลด แค่ช่วยรับไฟล์/URL */}
           <div>
-            <FieldLabel>อัปโหลด Plugin</FieldLabel>
+            <FieldLabel>Drag & Drop / เลือกไฟล์ (ไม่อัปโหลดอัตโนมัติ)</FieldLabel>
             <div
               onDragOver={(e) => {
                 e.preventDefault();
@@ -341,7 +332,7 @@ export default function PluginForm({
               onDrop={onDrop}
               onClick={onPickFile}
               role="button"
-              aria-label="อัปโหลดไฟล์ Plugin"
+              aria-label="drop zone"
               className={`group rounded-2xl border border-dashed p-6 text-center transition ${
                 dragOver
                   ? "border-amber-400 bg-amber-400/10"
@@ -378,55 +369,48 @@ export default function PluginForm({
                     {pickedFile.name}
                   </div>
                   <span className="text-[11px] text-white/60">
-                    {(pickedFile.size / 1024 / 1024).toFixed(2)} MB
-                    {uploadingFile ? " • กำลังอัปโหลด..." : fileUrl ? " • อัปโหลดแล้ว" : ""}
+                    {(pickedFile.size / 1024 / 1024).toFixed(2)} MB • โหมด URL เท่านั้น
                   </span>
                   <span className="text-[11px] text-white/45">
-                    คลิกเพื่อเลือกไฟล์ใหม่ หรือวางไฟล์ที่นี่
+                    วางลิงก์ไฟล์ในช่องด้านล่างเพื่อใช้งานจริง
                   </span>
                 </div>
               ) : (
                 <div className="grid gap-0.5">
                   <span className="text-sm font-medium">
-                    ลากวางไฟล์ที่นี่ หรือคลิกเพื่อเลือก
+                    ลาก “ไฟล์” เพื่อดูชื่อ/ขนาด หรือ “ลากลิงก์ URL” เพื่อเติมอัตโนมัติ
                   </span>
                   <span className="text-[11px] text-white/60">
-                    รองรับ .zip, .tar.gz, .rar, .7z
+                    รองรับ .zip, .tar.gz, .rar, .7z — *ไม่อัปโหลดไฟล์*
                   </span>
                 </div>
               )}
             </div>
-            <Hint>ไฟล์จะถูกอัปโหลดและเชื่อมโยงกับรายการนี้โดยอัตโนมัติ</Hint>
+            <Hint>
+              หากลาก “ลิงก์ URL” จากที่เก็บไฟล์ของคุณ จะเติมช่องด้านล่างให้อัตโนมัติ
+            </Hint>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4 truncate">
-            <FieldLabel>อัปโหลดไอคอน</FieldLabel>
+          {/* ไอคอน */}
+          <div className="truncate rounded-2xl border border-white/10 bg-white/[0.06] p-4">
+            <FieldLabel>เลือกรูปไอคอน (ไม่อัปโหลดอัตโนมัติ)</FieldLabel>
             <div className="flex items-center gap-4">
-              <div className="grid place-items-center size-16 rounded-xl bg-white/10 overflow-hidden">
+              <div className="grid size-16 place-items-center overflow-hidden rounded-xl bg-white/10">
                 {pickedIcon ? (
                   <img
                     src={URL.createObjectURL(pickedIcon)}
                     alt="icon preview"
                     className="h-10 w-10 object-contain"
                     onLoad={(e) =>
-                      URL.revokeObjectURL(
-                        (e.currentTarget as HTMLImageElement).src
-                      )
+                      URL.revokeObjectURL((e.currentTarget as HTMLImageElement).src)
                     }
                   />
+                ) : iconUrl ? (
+                  <img src={iconUrl} alt="current icon" className="h-10 w-10 object-contain" />
                 ) : defaults?.iconUrl ? (
-                  // แสดง icon เดิมถ้ามีค่าใน defaults
-                  <img
-                    src={defaults.iconUrl}
-                    alt="current icon"
-                    className="h-10 w-10 object-contain"
-                  />
+                  <img src={defaults.iconUrl} alt="default icon" className="h-10 w-10 object-contain" />
                 ) : (
-                  <svg
-                    viewBox="0 0 24 24"
-                    className="h-8 w-8 text-white/60"
-                    aria-hidden
-                  >
+                  <svg viewBox="0 0 24 24" className="h-8 w-8 text-white/60" aria-hidden>
                     <path
                       d="M12 5v14M5 12h14"
                       stroke="currentColor"
@@ -457,50 +441,52 @@ export default function PluginForm({
                     เลือกรูปไอคอน
                   </button>
                   {pickedIcon && (
-                    <span className="text-xs rounded-full border border-white/10 bg-white/10 px-2 py-0.5">
+                    <span className="rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-xs">
                       {pickedIcon.name}
                     </span>
                   )}
-                  {pickedIcon && (
+                  {(pickedIcon || iconUrl) && (
                     <button
                       type="button"
-                      onClick={() => setPickedIcon(null)}
-                      className="text-xs text-white/70 hover:text-white/90 underline"
+                      onClick={() => {
+                        setPickedIcon(null);
+                        setIconUrl("");
+                        if (iconRef.current) iconRef.current.value = "";
+                      }}
+                      className="text-xs text-white/70 underline hover:text-white/90"
                     >
                       ล้างรูป
                     </button>
                   )}
                 </div>
-                {uploadingIcon && <p className="text-[11px] text-white/60 mt-1">กำลังอัปโหลดไอคอน...</p>}
-                {!uploadingIcon && iconUrl && <p className="text-[11px] text-emerald-400 mt-1">อัปโหลดไอคอนแล้ว</p>}
-                <Hint>
-                  รองรับ PNG / JPG / WEBP / SVG — <br /> ขนาดแนะนำ ≤ 512×512
-                </Hint>
+                <Hint>โหมด URL เท่านั้น: วางลิงก์ไอคอนด้านล่าง (ถ้ามี)</Hint>
               </div>
             </div>
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 grid grid-cols-2 gap-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="recommended"
-                defaultChecked={defaults?.recommended}
-              />
-              แนะนำ (Recommended)
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="featured"
-                defaultChecked={defaults?.featured}
-              />
-              แสดงในหน้าแรก (Featured)
-            </label>
-          </div>
-
+          {/* ช่องกรอก URL จริง */}
           <div className="grid gap-2">
-            <FieldLabel>ลิงก์ไอคอน (ถ้ามี)</FieldLabel>
+            <FieldLabel>ลิงก์ไฟล์ปลั๊กอิน (fileUrl)</FieldLabel>
+            <input
+              name="fileUrl"
+              placeholder="https://.../plugin.zip"
+              value={fileUrl}
+              onChange={(e) => setFileUrl(e.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 outline-none transition focus:ring-2 focus:ring-white/10"
+            
+            />
+            {fileUrl && (
+              <a
+                href={fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] text-emerald-400 underline"
+              >
+                เปิดดูไฟล์
+              </a>
+            )}
+
+            <FieldLabel>ลิงก์ไอคอน (iconUrl)</FieldLabel>
             <input
               name="iconUrl"
               placeholder="https://.../icon.png"
@@ -508,14 +494,27 @@ export default function PluginForm({
               onChange={(e) => setIconUrl(e.target.value)}
               className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 outline-none transition focus:ring-2 focus:ring-white/10"
             />
-            <FieldLabel>ลิงก์ไฟล์ (ถ้าอัปโหลดไว้ที่อื่น)</FieldLabel>
-            <input
-              name="fileUrl"
-              placeholder="https://.../plugin.zip"
-              value={fileUrl}
-              onChange={(e) => setFileUrl(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 outline-none transition focus:ring-2 focus:ring-white/10"
-            />
+            {iconUrl && (
+              <a
+                href={iconUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] text-emerald-400 underline"
+              >
+                เปิดดูไอคอน
+              </a>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="recommended" defaultChecked={defaults?.recommended} />
+              แนะนำ (Recommended)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="featured" defaultChecked={defaults?.featured} />
+              แสดงในหน้าแรก (Featured)
+            </label>
           </div>
         </section>
       </div>
@@ -524,31 +523,14 @@ export default function PluginForm({
       <div className="mt-5 flex justify-end">
         <button
           type="submit"
-          disabled={loading || uploadingFile || uploadingIcon}
-          className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm text-black bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:brightness-95 disabled:opacity-60"
+          disabled={loading || !pickedFile }
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 px-4 py-2 text-sm text-black hover:brightness-95 disabled:opacity-60"
         >
           {loading ? (
             <span className="inline-flex items-center gap-2">
-              <svg
-                className="h-4 w-4 animate-spin"
-                viewBox="0 0 24 24"
-                aria-hidden
-              >
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  className="opacity-20"
-                ></circle>
-                <path
-                  d="M22 12a10 10 0 0 1-10 10"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  className="opacity-80"
-                ></path>
+              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" aria-hidden>
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-20" />
+                <path d="M22 12a10 10 0 0 1-10 10" fill="none" stroke="currentColor" strokeWidth="3" className="opacity-80" />
               </svg>
               กำลังบันทึก...
             </span>

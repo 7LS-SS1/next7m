@@ -168,6 +168,10 @@ model Plugin {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  status      PluginProcessStatus @default(QUEUED)
+  processedAt DateTime?
+  error       String?
+
   @@unique([name, version])
   @@index([category])
   @@index([vendor])
@@ -193,6 +197,13 @@ enum AnnouncementType {
   ANNOUNCE
   URGENT
   GENERAL
+}
+
+enum PluginProcessStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
 }
 
 /* ---------------- Organization ---------------- */

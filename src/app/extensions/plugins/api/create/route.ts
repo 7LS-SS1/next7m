@@ -1,89 +1,94 @@
 // src/app/extensions/plugins/api/create/route.ts
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { prisma } from "@lib/db";
-import { revalidatePath } from "next/cache";
-import { parseBoolean } from "@lib/zod-helpers";
-import slugify from "@lib/slugify";
+import { prisma } from "@/lib/db";
+import slugify from "@/lib/slugify";
+import { z } from "zod";
+import { RelOrAbsUrl } from "@/lib/zod-helpers";
+import { toBool, toStr } from "@/lib/form";
 
-// Coerce unknown FormData values to trimmed string
-function s(v: unknown): string | undefined {
-  if (typeof v === "string") return v.trim() || undefined;
-  if (v == null) return undefined;
-  const t = (v as any)?.toString?.();
-  return typeof t === "string" ? (t.trim() || undefined) : undefined;
-}
+// ✅ รับเฉพาะ URL ที่ได้จากการอัปโหลดไป Blob แล้วเท่านั้น
+const BodySchema = z.object({
+  name: z.string().min(1, "ต้องใส่ชื่อ").transform((v) => v.trim()),
+  version: z.string().optional(),
+  vendor: z.string().optional(),
+  category: z
+    .string()
+    .trim()
+    .transform((v) => (v && v.length > 0 ? v : "Etc."))
+    .default("Etc."),
+  content: z.string().optional(),
+  iconUrl: RelOrAbsUrl.optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v : undefined)),
+  fileUrl: RelOrAbsUrl.optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v : undefined)),
+  // รองรับทั้ง recommended และ isRecommended จากฟอร์มเดิม
+  recommended: z.boolean().optional().default(false),
+  isRecommended: z.boolean().optional().default(false),
+  featured: z.boolean().optional().default(false),
+});
 
 export async function POST(req: Request) {
   try {
-    // 0) เช็ค DB ping สั้นๆ (ช่วยหาสาเหตุ 500)
-    try {
-      await prisma.$queryRaw`SELECT 1`; // ถ้า .env หรือ DB ล้ม จะ throw ชัดเจน
-    } catch (e: any) {
-      console.error("[plugin:create] DB error:", e);
+    const fd = await req.formData();
+
+    // ❌ ไม่รองรับไฟล์ดิบอีกต่อไป (อัปโหลดที่ client → ได้ URL → ส่งมาเท่านั้น)
+    // const iconFile = fd.get("icon") as File | null;
+    // const mainFile = fd.get("file") as File | null;
+
+    const raw = {
+      name: toStr(fd.get("name")),
+      version: toStr(fd.get("version")),
+      vendor: toStr(fd.get("vendor")),
+      category: toStr(fd.get("category")) ?? "Etc.",
+      content: toStr(fd.get("content")),
+      iconUrl: toStr(fd.get("iconUrl")) ?? undefined,
+      fileUrl: toStr(fd.get("fileUrl")) ?? undefined,
+      recommended: toBool(fd.get("recommended")),
+      isRecommended:
+        toBool(fd.get("isRecommended")) || toBool(fd.get("recommended")),
+      featured: toBool(fd.get("featured")),
+    };
+
+    const parsed = BodySchema.safeParse(raw);
+    if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: "เชื่อมต่อฐานข้อมูลไม่สำเร็จ (ตรวจ DATABASE_URL / สิทธิ์ DB)" },
-        { status: 500 }
+        { ok: false, error: "Invalid input", issues: parsed.error.issues },
+        { status: 400 }
       );
     }
 
-    // 1) รับ form-data (multipart)
-    const fd = await req.formData();
+    const data = parsed.data;
+    const slug = slugify(data.name);
 
-    const name = s(fd.get("name"));
-    if (!name) {
-      return NextResponse.json({ ok: false, error: "กรุณากรอกชื่อปลั๊กอิน" }, { status: 400 });
-    }
-
-    const version = s(fd.get("version"));
-    const vendor = s(fd.get("vendor"));
-    const pluginType = s(fd.get("pluginType")) ?? "Other";
-    const category = s(fd.get("category")) ?? "Misc.";
-    const content = s(fd.get("content"));
-
-    // 2) ใช้ URL ที่ client อัปโหลดแล้วส่งมาแทนไฟล์ดิบ
-    let iconUrl = s(fd.get("iconUrl"));
-    let fileUrl = s(fd.get("fileUrl"));
-
-    const recommended = parseBoolean(fd.get("recommended"));
-    const featured = parseBoolean(fd.get("featured"));
-
-    // 4) สร้าง slug ป้องกันซ้ำ
-    let slug = slugify(name);
-    if (slug) {
-      const dup = await prisma.plugin.findUnique({ where: { slug } }).catch(() => null);
-      if (dup) slug = `${slug}-${Date.now().toString(36)}`;
-    }
-
-    // 5) เขียน DB
-    const row = await prisma.plugin.create({
+    const created = await prisma.plugin.create({
       data: {
-        name,
-        version,
-        vendor,
-        pluginType,
-        category,
-        content,
-        iconUrl,
-        fileUrl,
-        recommended,
-        featured,
+        name: data.name,
+        version: data.version ?? null,
+        vendor: data.vendor ?? null,
+        category: data.category || "Etc.",
+        content: data.content ?? null,
+        iconUrl: data.iconUrl ?? null,
+        fileUrl: data.fileUrl ?? null,
+        recommended: data.recommended || data.isRecommended || false,
+        featured: data.featured || false,
         slug,
       },
-      select: { id: true, slug: true },
+      select: { id: true, slug: true, name: true },
     });
 
-    // 6) Revalidate list + view
-    revalidatePath("/extensions/plugins");
-    if (row.slug) revalidatePath(`/extensions/plugins/${row.slug}/view`);
-
-    return NextResponse.json({ ok: true, id: row.id, slug: row.slug }, { status: 200 });
-  } catch (e: any) {
-    console.error("[plugin:create] unexpected:", e);
+    return NextResponse.json({
+      ok: true,
+      status: "created",
+      message: "บันทึกปลั๊กอินสำเร็จ",
+      plugin: created,
+    });
+  } catch (err: any) {
     return NextResponse.json(
-      { ok: false, error: e?.message || "เกิดข้อผิดพลาดภายในระบบ" },
+      { ok: false, error: err?.message || "Unexpected error" },
       { status: 500 }
     );
   }

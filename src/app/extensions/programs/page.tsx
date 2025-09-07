@@ -65,7 +65,6 @@ export default async function ProgramsPage({
     if (ok) recommendedSet.add(p.id);
     return ok;
   });
-  const normals = rows.filter((p) => !recommendedSet.has(p.id));
 
   return (
     <div className="grid gap-4">
@@ -119,7 +118,7 @@ export default async function ProgramsPage({
           <h3 className="font-semibold text-white/90">แนะนำ</h3>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {recommended.map((p) => (
-              <ProgramCard key={p.id} p={p as any} highlight />
+              <ProgramCard key={p.id} item={p as any} basePath="/extensions/programs" highlight />
             ))}
           </div>
         </section>
@@ -144,8 +143,8 @@ export default async function ProgramsPage({
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {normals.map((p) => (
-              <ProgramCard key={p.id} p={p as any} />
+            {rows.map((p) => (
+              <ProgramCard key={p.id} item={p as any} basePath="/extensions/programs" />
             ))}
           </div>
         )}

@@ -51,19 +51,52 @@ export default async function ProgramsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Programs</h1>
-          <p className="text-white/60 text-sm">รายการโปรแกรมทั้งหมด พร้อมอัปเดตล่าสุด</p>
+          <p className="text-white/60 text-sm">
+            รายการโปรแกรมทั้งหมด พร้อมอัปเดตล่าสุด
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/extensions/programs/new" className="btn-primary px-4 py-2 rounded-xl">+ Program</Link>
-          <Link href="/extensions" className="rounded-xl border border-white/10 px-3 py-2 hover:bg-white/10">ภาพรวม</Link>
+          <Link
+            href="/extensions/programs/new"
+            className="btn-primary px-4 py-2 rounded-xl"
+          >
+            + Program
+          </Link>
+          <Link
+            href="/extensions/plugins/new"
+            className="btn-primary px-4 py-2 rounded-xl"
+          >
+            + Plugin
+          </Link>
+          <Link
+            href="/extensions"
+            className="rounded-xl border border-white/10 px-3 py-2 hover:bg-white/10"
+          >
+            ภาพรวม
+          </Link>
         </div>
       </div>
 
       {/* Stats */}
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard title="ทั้งหมด" value={programCount} hint="จำนวนโปรแกรม" emoji="🖥️" />
-        <StatCard title="อัปเดต 14 วันล่าสุด" value={newPrograms.length} hint="New updates" emoji="✨" />
-        <StatCard title="แสดงทั้งหมด" value={latestPrograms.length} hint="ที่โหลดมาในหน้า" emoji="📄" />
+        <StatCard
+          title="ทั้งหมด"
+          value={programCount}
+          hint="จำนวนโปรแกรม"
+          emoji="🖥️"
+        />
+        <StatCard
+          title="อัปเดต 14 วันล่าสุด"
+          value={newPrograms.length}
+          hint="New updates"
+          emoji="✨"
+        />
+        <StatCard
+          title="แสดงทั้งหมด"
+          value={latestPrograms.length}
+          hint="ที่โหลดมาในหน้า"
+          emoji="📄"
+        />
       </section>
 
       {/* Highlights: New Updates */}
@@ -85,7 +118,13 @@ export default async function ProgramsPage() {
           moreHref="/extensions/programs"
           headers={["ชื่อ", "รายละเอียด", "อัปเดตเมื่อ"]}
           rows={latestPrograms.map((p: any) => [
-            <Link key={p.id} href={`/extensions/programs/${p.id}/edit`} className="hover:underline">{p.name}</Link>,
+            <Link
+              key={p.id}
+              href={`/extensions/programs/${p.id}/edit`}
+              className="hover:underline"
+            >
+              {p.name}
+            </Link>,
             `${p.vendor ?? "—"} · ${p.category ?? "—"} · v${p.version ?? "-"}`,
             fmt(p.updatedAt),
           ])}
