@@ -24,9 +24,14 @@ export default async function NewDomainPage() {
   ]);
 
   return (
-    <div className="grid gap-4 max-w-3xl">
+    <div className="grid gap-4 max-w-[100%] mx-auto mt-3">
       <h1 className="text-xl font-bold">เพิ่ม Domain</h1>
-      <DomainForm hosts={hosts} hostTypes={hostTypes} emails={emails} teams={teams} />
+      <DomainForm
+        hosts={hosts}
+        hostTypes={hostTypes}
+        emails={emails}
+        teams={teams}
+      />
     </div>
   );
 }
