@@ -1,30 +1,94 @@
-// src/components/cards/AnnouncementsCard.tsx
-type Item = { text: string; time: string };
+"use client";
 
-type Props = {
-  title?: string;
-  items: Item[];
-  className?: string;
+import * as React from "react";
+
+export type AnnouncementItem = {
+  id: string;
+  text: string;
+  time?: string;
+  href?: string; // ลิงก์ไปอ่านฉบับเต็ม
 };
 
 export default function AnnouncementsCard({
-  title = "ข่าวสาร / ประกาศ",
-  items,
+  items = [],
   className = "",
-}: Props) {
+}: {
+  items: AnnouncementItem[];
+  className?: string;
+}) {
+  const [read, setRead] = React.useState<Set<string>>(new Set());
+
+  // โหลดสถานะที่อ่านแล้วจาก localStorage
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem("announce:read");
+      if (raw) setRead(new Set(JSON.parse(raw)));
+    } catch {}
+  }, []);
+
+  function markRead(id: string) {
+    setRead((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      try {
+        localStorage.setItem(
+          "announce:read",
+          JSON.stringify(Array.from(next))
+        );
+      } catch {}
+      return next;
+    });
+  }
+
   return (
-    <section className={`w-full lg:col-span-2 lg:row-span-2 mb-4 ${className}`}>
-      <div className="lg:col-span-2 card p-5">
-        <h2 className="text-2xl font-bold mb-3">{title}</h2>
-        <ul className="space-y-3 text-sm text-white/80">
-          {items.map((it, i) => (
-            <li key={i} className="flex items-start justify-between gap-3">
-              <span>{it.text}</span>
-              <span className="text-white/50">{it.time}</span>
-            </li>
-          ))}
-        </ul>
+    <div className={`rounded-2xl border border-white/10 bg-white/[0.03] ${className}`}>
+      <div className="flex items-center justify-between px-4 py-3">
+        <h3 className="text-sm font-semibold">ประกาศล่าสุด</h3>
+        <span className="text-xs text-white/60">{items.length} รายการ</span>
       </div>
-    </section>
+
+      <ul className="divide-y divide-white/5">
+        {items.map((it) => {
+          const unread = !read.has(it.id);
+          const content = (
+            <div className="flex items-center gap-3 px-4 py-3">
+              {unread && (
+                <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-400 px-2 py-0.5 text-[10px] font-semibold text-black">
+                  NEW
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium hover:underline">{it.text}</div>
+                {it.time && (
+                  <div className="mt-0.5 text-xs text-white/60">{it.time}</div>
+                )}
+              </div>
+            </div>
+          );
+
+          return (
+            <li key={it.id} className="hover:bg-white/[0.04]">
+              {it.href ? (
+                <a
+                  href={it.href}
+                  onClick={() => markRead(it.id)}
+                  className="block focus:outline-none"
+                >
+                  {content}
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => markRead(it.id)}
+                  className="block w-full text-left focus:outline-none"
+                >
+                  {content}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

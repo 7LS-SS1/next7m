@@ -1,15 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useFormState, useFormStatus } from "react-dom";
+import { useFormStatus } from "react-dom";
 
 type FormState = { ok?: boolean; error?: string; message?: string } | null;
-
-type Props = {
-  action: (fd: FormData) => Promise<any>;
-};
-
+type Props = { action: (fd: FormData) => Promise<any> };
 type Step = 1 | 2 | 3;
+type Role = "SYSTEM" | "ADMIN" | "MANAGER" | "ASSISTANT_MANAGER" | "STAFF";
 
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -27,19 +24,21 @@ function SubmitButton({ label }: { label: string }) {
 export default function RegisterForm({ action }: Props) {
   const [step, setStep] = React.useState<Step>(1);
   const [showPw, setShowPw] = React.useState(false);
-  const [state, formAction] = useFormState<FormState>(action as any, null);
+
+  // ⬇️ React.useActionState (แทน useFormState)
+  const actionWithPrev = React.useCallback(async (_prev: FormState, fd: FormData) => action(fd), [action]);
+  const [state, formAction] = (React as any).useActionState<FormState, FormData>(actionWithPrev, null);
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [name, setName] = React.useState("");
   const [accept, setAccept] = React.useState(false);
 
-  function next() {
-    setStep((s) => (s < 3 ? ((s + 1) as Step) : s));
-  }
-  function prev() {
-    setStep((s) => (s > 1 ? ((s - 1) as Step) : s));
-  }
+  // ✅ เลือก Role ในขั้นตอนที่ 2 (ค่าเริ่มต้น STAFF)
+  const [role, setRole] = React.useState<Role>("STAFF");
+
+  function next() { setStep((s) => (s < 3 ? ((s + 1) as Step) : s)); }
+  function prev() { setStep((s) => (s > 1 ? ((s - 1) as Step) : s)); }
 
   const pwScore = React.useMemo(() => {
     let score = 0;
@@ -56,14 +55,12 @@ export default function RegisterForm({ action }: Props) {
 
   return (
     <div className="mx-auto w-full max-w-md">
+      {/* Indicators */}
       <div className="mb-6 grid grid-cols-3 gap-2 text-center text-xs">
         {["บัญชี", "โปรไฟล์", "ยืนยัน"].map((t, i) => {
           const active = step >= (i + 1);
           return (
-            <div
-              key={t}
-              className={`rounded-full px-2 py-1 ${active ? "bg-white/90 text-black" : "bg-white/10 text-white/70"}`}
-            >
+            <div key={t} className={`rounded-full px-2 py-1 ${active ? "bg-white/90 text-black" : "bg-white/10 text-white/70"}`}>
               {i + 1}. {t}
             </div>
           );
@@ -71,12 +68,14 @@ export default function RegisterForm({ action }: Props) {
       </div>
 
       <form action={formAction} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur">
+        {/* ส่งค่าทั้งหมดตอน Step 3 */}
         {step === 3 && (
           <>
             <input type="hidden" name="email" value={email} />
             <input type="hidden" name="password" value={password} />
             <input type="hidden" name="name" value={name} />
             <input type="hidden" name="accept" value={accept ? "on" : ""} />
+            <input type="hidden" name="role" value={role} />
           </>
         )}
 
@@ -118,31 +117,19 @@ export default function RegisterForm({ action }: Props) {
               </div>
               <div className="mt-2 grid grid-cols-5 gap-1">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`h-1 rounded ${i < pwScore ? "bg-emerald-400" : "bg-white/15"}`}
-                  />
+                  <div key={i} className={`h-1 rounded ${i < pwScore ? "bg-emerald-400" : "bg-white/15"}`} />
                 ))}
               </div>
-              <p className="mt-1 text-xs text-white/60">
-                แนะนำให้มีตัวพิมพ์ใหญ่ ตัวเลข และอักขระพิเศษ
-              </p>
+              <p className="mt-1 text-xs text-white/60">แนะนำให้มีตัวพิมพ์ใหญ่ ตัวเลข และอักขระพิเศษ</p>
             </div>
 
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={next}
-                disabled={!canNext1}
-                className="w-full rounded-xl border border-white/15 px-4 py-2 hover:bg-white/5 disabled:opacity-50"
-              >
+              <button type="button" onClick={next} disabled={!canNext1} className="w-full rounded-xl border border-white/15 px-4 py-2 hover:bg-white/5 disabled:opacity-50">
                 ขั้นถัดไป
               </button>
             </div>
 
-            {(state?.error || state?.message) && (
-              <p className="text-sm text-red-400">{state?.error ?? state?.message}</p>
-            )}
+            {(state?.error || state?.message) && <p className="text-sm text-red-400">{state?.error ?? state?.message}</p>}
           </div>
         )}
 
@@ -160,29 +147,33 @@ export default function RegisterForm({ action }: Props) {
               />
             </div>
 
+            {/* ✅ เลือก Role ได้ (ฝั่ง Server จะบังคับตามสิทธิ์อีกชั้น) */}
+            <div>
+              <label className="mb-1 block text-sm font-medium">กำหนดสิทธิ์ (Role)</label>
+              <select
+                className="w-full rounded-xl border border-white/15 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-white/15"
+                value={role}
+                onChange={(e) => setRole(e.target.value as Role)}
+              >
+                <option value="STAFF" className="bg-[rgb(var(--card))]">STAFF (ค่าเริ่มต้น)</option>
+                <option value="ASSISTANT_MANAGER" className="bg-[rgb(var(--card))]">ASSISTANT_MANAGER</option>
+                <option value="MANAGER" className="bg-[rgb(var(--card))]">MANAGER</option>
+                <option value="ADMIN" className="bg-[rgb(var(--card))]">ADMIN</option>
+                <option value="SYSTEM" className="bg-[rgb(var(--card))]">SYSTEM</option>
+              </select>
+              <p className="mt-1 text-xs text-white/60">
+                ถ้าผู้ที่กำลังสมัครไม่ใช่แอดมิน ระบบจะตั้งค่าเป็น <b>STAFF</b> อัตโนมัติ
+              </p>
+            </div>
+
             <label className="inline-flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={accept}
-                onChange={(e) => setAccept(e.target.checked)}
-              />
+              <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} />
               <span>ฉันยอมรับเงื่อนไขการใช้งาน</span>
             </label>
 
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={prev}
-                className="w-1/2 rounded-xl border border-white/15 px-4 py-2 hover:bg-white/5"
-              >
-                กลับ
-              </button>
-              <button
-                type="button"
-                onClick={next}
-                disabled={!canNext2}
-                className="w-1/2 rounded-xl border border-white/15 px-4 py-2 hover:bg-white/5 disabled:opacity-50"
-              >
+              <button type="button" onClick={prev} className="w-1/2 rounded-xl border border-white/15 px-4 py-2 hover:bg-white/5">กลับ</button>
+              <button type="button" onClick={next} disabled={!canNext2} className="w-1/2 rounded-xl border border-white/15 px-4 py-2 hover:bg-white/5 disabled:opacity-50">
                 ขั้นถัดไป
               </button>
             </div>
@@ -196,24 +187,19 @@ export default function RegisterForm({ action }: Props) {
               <ul className="text-sm text-white/80">
                 <li><span className="opacity-60">อีเมล:</span> {email}</li>
                 <li><span className="opacity-60">ชื่อที่แสดง:</span> {name}</li>
+                <li><span className="opacity-60">Role ที่เลือก:</span> {role}</li>
               </ul>
             </div>
 
             <SubmitButton label="สมัครสมาชิก" />
 
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={prev}
-                className="w-full rounded-xl border border-white/15 px-4 py-2 hover:bg-white/5"
-              >
+              <button type="button" onClick={prev} className="w-full rounded-xl border border-white/15 px-4 py-2 hover:bg-white/5">
                 กลับไปแก้ไข
               </button>
             </div>
 
-            {(state?.error || state?.message) && (
-              <p className="text-sm text-red-400">{state?.error ?? state?.message}</p>
-            )}
+            {(state?.error || state?.message) && <p className="text-sm text-red-400">{state?.error ?? state?.message}</p>}
           </div>
         )}
       </form>

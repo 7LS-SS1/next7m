@@ -1,263 +1,169 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef } from 'react'
+import { EditorContent, useEditor } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Link from '@tiptap/extension-link'
+import Underline from '@tiptap/extension-underline'
+import Image from '@tiptap/extension-image'
 
 /**
- * RichTextAnnounce (v2)
- * - บรรณาธิการข้อความแบบ Rich ที่เน้น Blog/ประกาศ
- * - UX ดีขึ้น: แถบเครื่องมือแบบลอย (sticky), ปุ่มใหญ่ชัด, กลุ่มคำสั่งแยกชัดเจน
- * - ความปลอดภัย: sanitize ก่อน submit + ตอน paste
- * - การใช้งาน: ส่งค่า HTML ผ่าน <input type="hidden" name={name} />
+ * RichTextAnnounce (TipTap version)
+ * - Robust editor (no document.execCommand)
+ * - Works reliably with toolbar controls, selection, paste, etc.
+ * - Syncs HTML to hidden input for server submit
  */
 export default function RichTextAnnounce({
+  id,
   name = 'content',
   defaultHTML = '',
+  initialHTML,
+  value,
+  onChangeHTML,
   minHeight = 320,
-  placeholder = 'เขียนประกาศของคุณที่นี่... (รองรับหัวข้อ H2/H3, ตัวหนา/เอียง, รายการ, อ้างอิง, โค้ด)'
+  placeholder = 'เขียนประกาศของคุณที่นี่... (รองรับหัวข้อ H2/H3, ตัวหนา/เอียง, รายการ, อ้างอิง, โค้ด)',
+  className = '',
 }: {
+  id?: string
   name?: string
   defaultHTML?: string
+  initialHTML?: string
+  value?: string
+  onChangeHTML?: (html: string) => void
   minHeight?: number
   placeholder?: string
+  className?: string
 }) {
-  const editorRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [html, setHtml] = useState<string>(defaultHTML)
-  const [isFocused, setIsFocused] = useState(false)
+  const hiddenRef = useRef<HTMLInputElement | null>(null)
 
-  // hook form submit → sanitize
+  // ใช้ initial content ตาม priority
+  const initialContent = useMemo(() => (value ?? initialHTML ?? defaultHTML) || '', [value, initialHTML, defaultHTML])
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: { levels: [2, 3] },
+        codeBlock: true,
+        blockquote: true,
+        bulletList: true,
+        orderedList: true,
+      }),
+      // Underline,
+      Link.configure({ openOnClick: true, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
+      Image.configure({ inline: false, allowBase64: false })
+    ],
+    content: initialContent,
+    onUpdate({ editor }) {
+      const html = editor.getHTML()
+      if (hiddenRef.current) hiddenRef.current.value = html
+      onChangeHTML?.(html)
+    },
+    editorProps: {
+      attributes: {
+        class: 'prose prose-invert max-w-none outline-none',
+      },
+      handlePaste(view, event) {
+        // ปล่อยให้ TipTap จัดการ paste (มี sanitize พื้นฐาน)
+        return false
+      },
+    },
+    autofocus: false,
+  })
+
+  // sync controlled value → editor
   useEffect(() => {
-    const el = editorRef.current
-    if (!el) return
-    const form = el.closest('form') as HTMLFormElement | null
-    if (!form) return
-
-    const onSubmit = () => {
-      const raw = editorRef.current?.innerHTML || ''
-      const clean = sanitizeHTML(raw)
-      if (inputRef.current) inputRef.current.value = clean
-      setHtml(clean)
+    if (!editor) return
+    if (value !== undefined && value !== editor.getHTML()) {
+      editor.commands.setContent(value, false)
+      if (hiddenRef.current) hiddenRef.current.value = value
     }
-    form.addEventListener('submit', onSubmit)
-    return () => form.removeEventListener('submit', onSubmit)
-  }, [])
+  }, [value, editor])
 
-  // sync defaultHTML เมื่อเปลี่ยนหน้า/โหลดข้อมูล
-  useEffect(() => {
-    setHtml(defaultHTML)
-    if (editorRef.current) editorRef.current.innerHTML = defaultHTML || ''
-    if (inputRef.current) inputRef.current.value = defaultHTML || ''
-  }, [defaultHTML])
+  // placeholder แบบ overlay เมื่อไม่มีเนื้อหา
+  const showPlaceholder = editor ? editor.isEmpty : !initialContent
 
-  // sanitize ขณะวาง (paste)
-  useEffect(() => {
-    const el = editorRef.current
-    if (!el) return
-    const onPaste = (e: ClipboardEvent) => {
-      if (!e.clipboardData) return
-      const html = e.clipboardData.getData('text/html')
-      const text = e.clipboardData.getData('text/plain')
-      if (!html && !text) return
-      e.preventDefault()
-      const cleaned = sanitizeHTML(html || `<p>${escapeHtml(text)}</p>`) || ''
-      document.execCommand('insertHTML', false, cleaned)
-    }
-    el.addEventListener('paste', onPaste as any)
-    return () => el.removeEventListener('paste', onPaste as any)
-  }, [])
+  return (
+    <div className="space-y-3">
+      {/* Toolbar */}
+      <div className="sticky top-2 z-10 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] p-2 backdrop-blur supports-[backdrop-filter]:bg-white/[0.06]">
+        <Button onClick={() => editor?.chain().focus().toggleBold().run()} active={!!editor?.isActive('bold')} title="ตัวหนา"><b>B</b></Button>
+        <Button onClick={() => editor?.chain().focus().toggleItalic().run()} active={!!editor?.isActive('italic')} title="ตัวเอียง"><i>I</i></Button>
+        <Button onClick={() => editor?.chain().focus().toggleUnderline().run()} active={!!editor?.isActive('underline')} title="ขีดเส้นใต้"><u>U</u></Button>
+        <Divider />
+        <Button onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} active={!!editor?.isActive('heading', { level: 2 })} title="หัวข้อ H2">H2</Button>
+        <Button onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} active={!!editor?.isActive('heading', { level: 3 })} title="หัวข้อ H3">H3</Button>
+        <Button onClick={() => editor?.chain().focus().setParagraph().run()} active={!!editor?.isActive('paragraph')} title="ย่อหน้า">¶</Button>
+        <Button onClick={() => editor?.chain().focus().toggleBlockquote().run()} active={!!editor?.isActive('blockquote')} title="อ้างอิง">❝❞</Button>
+        <Divider />
+        <Button onClick={() => editor?.chain().focus().toggleBulletList().run()} active={!!editor?.isActive('bulletList')} title="ลิสต์จุด">•</Button>
+        <Button onClick={() => editor?.chain().focus().toggleOrderedList().run()} active={!!editor?.isActive('orderedList')} title="ลิสต์เลข">1.</Button>
+        <Divider />
+        <Button onClick={() => editor?.chain().focus().toggleCodeBlock().run()} active={!!editor?.isActive('codeBlock')} title="โค้ดบล็อก">{'</>'}</Button>
+        <Button onClick={insertLink(editor)} title="แทรกลิงก์">🔗</Button>
+        <Button onClick={insertImage(editor)} title="แทรกรูป">🖼️</Button>
+        <Button onClick={() => editor?.chain().focus().setHorizontalRule().run()} title="เส้นคั่น">━</Button>
+        <Divider />
+        <Button onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()} title="ล้างรูปแบบ">⟲</Button>
+      </div>
 
-  // execCommand helper (ยังรองรับใน browser ส่วนใหญ่)
-  const exec = (cmd: string, val?: string) => {
-    document.execCommand(cmd, false, val)
-    editorRef.current?.focus()
-  }
+      {/* Editor */}
+      <div className="relative rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        {showPlaceholder && (
+          <div className="pointer-events-none absolute left-5 right-5 top-4 select-none text-sm text-white/40">
+            {placeholder}
+          </div>
+        )}
+        <div className="min-h-[1rem]" style={{ minHeight }}>
+          <EditorContent editor={editor} id={id} />
+        </div>
+      </div>
 
-  // toggle โค้ดบล็อก (แปลง selection เป็น <pre><code>)
-  const toggleCodeBlock = () => {
-    // พยายามใช้ formatBlock ก่อน
-    document.execCommand('formatBlock', false, 'pre')
-    editorRef.current?.focus()
-  }
+      {/* hidden input for server submit */}
+      <input ref={hiddenRef} type="hidden" name={name} defaultValue={initialContent} />
+    </div>
+  )
+}
 
-  // แทรกเส้นคั่น
-  const insertDivider = () => {
-    document.execCommand('insertHTML', false, '<hr />')
-    editorRef.current?.focus()
-  }
-
-  const ToolbarButton = ({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) => (
+function Button({ onClick, active, title, children }: { onClick: () => void; active?: boolean; title?: string; children: React.ReactNode }) {
+  return (
     <button
       type="button"
-      onClick={onClick}
       title={title}
-      className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-sm hover:bg-white/[0.1] active:translate-y-px"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+      className={`grid h-9 w-9 place-items-center rounded-lg border text-sm active:translate-y-px ${
+        active ? 'border-emerald-400 bg-emerald-400/10' : 'border-white/10 bg-white/[0.05] hover:bg-white/[0.1]'
+      }`}
     >
       {children}
     </button>
   )
+}
 
-  const placeholderVisible = useMemo(
-    () => !isFocused && (!html || html === '<p><br></p>' || html === '<br>'),
-    [isFocused, html]
-  )
+function Divider() {
+  return <span className="mx-1 h-5 w-px bg-white/10" />
+}
 
-  return (
-    <div className="space-y-3">
-      {/* Toolbar (sticky) */}
-      <div className="sticky top-2 z-10 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] p-2 backdrop-blur supports-[backdrop-filter]:bg-white/[0.06]">
-        {/* Headings */}
-        <div className="flex items-center gap-1">
-          <ToolbarButton onClick={() => exec('formatBlock', '<p>')} title="ย่อหน้า (P)">P</ToolbarButton>
-          <ToolbarButton onClick={() => exec('formatBlock', '<h2>')} title="หัวข้อ H2">H2</ToolbarButton>
-          <ToolbarButton onClick={() => exec('formatBlock', '<h3>')} title="หัวข้อ H3">H3</ToolbarButton>
-        </div>
-        <span className="h-6 w-px bg-white/10" />
-        {/* Inline */}
-        <div className="flex items-center gap-1">
-          <ToolbarButton onClick={() => exec('bold')} title="ตัวหนา"><b>B</b></ToolbarButton>
-          <ToolbarButton onClick={() => exec('italic')} title="ตัวเอียง"><i>I</i></ToolbarButton>
-          <ToolbarButton onClick={() => exec('underline')} title="ขีดเส้นใต้"><u>U</u></ToolbarButton>
-          <ToolbarButton onClick={() => exec('strikeThrough')} title="ขีดทับ"><s>S</s></ToolbarButton>
-          <ToolbarButton onClick={() => exec('removeFormat')} title="ล้างรูปแบบ">⟲</ToolbarButton>
-        </div>
-        <span className="h-6 w-px bg-white/10" />
-        {/* Lists */}
-        <div className="flex items-center gap-1">
-          <ToolbarButton onClick={() => exec('insertUnorderedList')} title="รายการหัวข้อย่อย">•</ToolbarButton>
-          <ToolbarButton onClick={() => exec('insertOrderedList')} title="รายการตัวเลข">1.</ToolbarButton>
-          <ToolbarButton onClick={() => exec('indent')} title="เพิ่มย่อหน้า">→</ToolbarButton>
-          <ToolbarButton onClick={() => exec('outdent')} title="ลดย่อหน้า">←</ToolbarButton>
-        </div>
-        <span className="h-6 w-px bg-white/10" />
-        {/* Insert */}
-        <div className="flex items-center gap-1">
-          <ToolbarButton onClick={onInsertLink} title="แทรกลิงก์">🔗</ToolbarButton>
-          <ToolbarButton onClick={onInsertImage} title="แทรกรูป">🖼️</ToolbarButton>
-          <ToolbarButton onClick={insertDivider} title="เส้นคั่น">━</ToolbarButton>
-          <ToolbarButton onClick={toggleCodeBlock} title="โค้ดบล็อก">{`</>`}</ToolbarButton>
-          <ToolbarButton onClick={() => exec('formatBlock', '<blockquote>')} title="อ้างอิง">❝❞</ToolbarButton>
-        </div>
-      </div>
-
-      {/* Editor */}
-      <div className="relative">
-        <div
-          ref={editorRef}
-          className="prose prose-invert max-w-none rounded-2xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.04)] focus:outline-none prose-pre:bg-white/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:bg-white/10"
-          contentEditable
-          style={{ minHeight }}
-          onInput={(e) => setHtml((e.target as HTMLDivElement).innerHTML)}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          onKeyDown={(e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); exec('bold') }
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') { e.preventDefault(); exec('italic') }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-              // ⌘/Ctrl + Enter → submit form หากมี
-              const form = editorRef.current?.closest('form') as HTMLFormElement | null
-              if (form) {
-                e.preventDefault()
-                form.requestSubmit()
-              }
-            }
-          }}
-          suppressContentEditableWarning
-          dangerouslySetInnerHTML={{ __html: defaultHTML || '' }}
-        />
-
-        {/* Placeholder overlay */}
-        {placeholderVisible && (
-          <div className="pointer-events-none absolute inset-0 select-none p-5 text-white/40" style={{ minHeight }}>
-            {placeholder}
-          </div>
-        )}
-      </div>
-
-      {/* Hidden input for form submit */}
-      <input ref={inputRef} type="hidden" name={name} defaultValue={defaultHTML} />
-    </div>
-  )
-
-  function onInsertLink() {
+function insertLink(editor: any) {
+  return () => {
+    if (!editor) return
     const url = prompt('ใส่ URL ที่ต้องการลิงก์ไป:')?.trim()
     if (!url) return
     try {
       const u = new URL(url, window.location.origin)
-      exec('createLink', u.toString())
+      editor.chain().focus().extendMarkRange('link').setLink({ href: u.toString() }).run()
     } catch {}
   }
+}
 
-  function onInsertImage() {
+function insertImage(editor: any) {
+  return () => {
+    if (!editor) return
     const url = prompt('ใส่ URL รูปภาพ (https://...)')?.trim()
     if (!url) return
     try {
       const u = new URL(url, window.location.origin)
-      exec('insertImage', u.toString())
+      editor.chain().focus().setImage({ src: u.toString(), alt: '' }).run()
     } catch {}
   }
-}
-
-/**
- * sanitizeHTML – ทำความสะอาด HTML (whitelist) สำหรับประกาศ/บล็อก
- */
-function sanitizeHTML(input: string): string {
-  try {
-    const allowedTags = new Set([
-      'p','br','strong','b','em','i','u','s','a','ul','ol','li','h2','h3','blockquote','img','code','pre','hr'
-    ])
-    const allowedAttrs = new Set(['href','target','rel','src','alt'])
-
-    const doc = new DOMParser().parseFromString(`<div>${input}</div>`, 'text/html')
-    const walker = document.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT, null)
-
-    const toRemove: Element[] = []
-    const sanitizeElement = (el: Element) => {
-      if (!allowedTags.has(el.tagName.toLowerCase())) {
-        toRemove.push(el)
-        return
-      }
-      for (const attr of Array.from(el.attributes)) {
-        if (!allowedAttrs.has(attr.name.toLowerCase())) el.removeAttribute(attr.name)
-      }
-      if (el.tagName.toLowerCase() === 'a') {
-        const a = el as HTMLAnchorElement
-        if (a.href && !a.target) a.target = '_blank'
-        a.rel = 'noopener noreferrer'
-      }
-      if (el.tagName.toLowerCase() === 'img') {
-        const im = el as HTMLImageElement
-        if (!/^https?:\/\//i.test(im.src)) im.remove()
-        im.removeAttribute('width')
-        im.removeAttribute('height')
-        im.setAttribute('loading', 'lazy')
-        im.style.maxWidth = '100%'
-        im.style.height = 'auto'
-      }
-      el.removeAttribute('onerror')
-      el.removeAttribute('onclick')
-      el.removeAttribute('onload')
-    }
-
-    let current = walker.currentNode as Element | null
-    while (current) {
-      sanitizeElement(current)
-      current = walker.nextNode() as Element | null
-    }
-    toRemove.forEach((el) => el.replaceWith(...Array.from(el.childNodes)))
-
-    return doc.body.innerHTML.replace(/^<div>|<\/div>$/g, '')
-  } catch {
-    const div = document.createElement('div')
-    div.textContent = input
-    return `<p>${div.innerHTML}</p>`
-  }
-}
-
-function escapeHtml(s: string) {
-  return s
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;')
 }

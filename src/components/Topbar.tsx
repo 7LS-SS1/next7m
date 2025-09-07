@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import Icon from "@/assets/icons/UFABET7M-MINI.png";
+import { usePathname } from "next/navigation";
 
 type Me = {
   ok: boolean;
@@ -20,20 +21,47 @@ function initialsOf(nameOrEmail: string | null | undefined) {
 
 export default function Topbar() {
   const [me, setMe] = useState<Me | null>(null);
+  const pathname = usePathname();
+
+  async function loadMe(aliveRef?: { current: boolean }) {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
+      const user = json?.user ?? json?.data ?? null;
+      if (!aliveRef || aliveRef.current !== false) {
+        setMe({ ok: json?.ok ?? !!user, user });
+      }
+    } catch {
+      if (!aliveRef || aliveRef.current !== false) {
+        setMe({ ok: false, user: null });
+      }
+    }
+  }
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/auth/me", { cache: "no-store" });
-        const data = (await res.json()) as Me;
-        if (alive) setMe(data);
-      } catch {
-        if (alive) setMe({ ok: false, user: null });
-      }
-    })();
+    const alive = { current: true };
+    loadMe(alive);
     return () => {
-      alive = false;
+      alive.current = false;
+    };
+    // re-run when route changes to update after login redirects
+  }, [pathname]);
+
+  useEffect(() => {
+    const onFocus = () => loadMe();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadMe();
+    };
+    const onSessionChanged = () => loadMe();
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("session:changed", onSessionChanged);
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("session:changed", onSessionChanged);
     };
   }, []);
 
@@ -47,12 +75,6 @@ export default function Topbar() {
       role="banner"
     >
       <div className="flex items-center gap-2 px-3 lg:px-5 h-14">
-        {/* Left: Logo */}
-        <Link href={user ? "/dashboard" : "/"} className="flex items-center gap-2">
-          <Image src={Icon} alt="logo" width={22} height={22} className="rounded" />
-          <span className="font-semibold tracking-wide">7M Console</span>
-        </Link>
-
         {/* Center: Search */}
         <div className="flex-1 px-1">
           <div className="relative hidden md:block">
@@ -78,10 +100,10 @@ export default function Topbar() {
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <span className="hidden md:inline text-sm text-white/60">สิทธิ์</span>
+            {/* <span className="hidden md:inline text-sm text-white/60">สิทธิ์</span>
             <span className="px-2 py-0.5 text-xs rounded-full border border-white/20 bg-white/5">
               {user.role}
-            </span>
+            </span> */}
 
             <details className="relative">
               <summary

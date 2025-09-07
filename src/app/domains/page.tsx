@@ -2,14 +2,22 @@
 import Link from "next/link";
 import { prisma } from "@lib/db";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
+import { getSession } from "@lib/auth-server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type PageProps = { searchParams: Promise<{ q?: string }> };
 
+async function checkIsAdmin() {
+  const session = await getSession().catch(() => null);
+  const role = session?.role ?? null;
+  return role === "ADMIN" || role === "SYSTEM";
+}
+
 export default async function DomainsPage({ searchParams }: PageProps) {
   const sp = await searchParams;
+  const isAdmin = await checkIsAdmin();
   const q = (sp?.q ?? "").trim();
 
   // สร้าง where แบบยืดหยุ่น (มี/ไม่มี q)
@@ -55,9 +63,11 @@ export default async function DomainsPage({ searchParams }: PageProps) {
               ค้นหา
             </button>
           </form>
-          <Link href="/domains/new" className="btn-primary rounded-xl px-4 py-2">
-            เพิ่ม Domain
-          </Link>
+          {isAdmin && (
+            <Link href="/domains/new" className="btn-primary rounded-xl px-4 py-2">
+              เพิ่ม Domain
+            </Link>
+          )}
         </div>
       </div>
 

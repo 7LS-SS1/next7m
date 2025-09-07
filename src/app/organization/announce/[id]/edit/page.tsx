@@ -1,12 +1,17 @@
-// File: src/app/organization/announce/[id]/edit/page.tsx
-import { prisma } from '@lib/db'
-import AnnounceForm from '../../_components/AnnounceForm'
-import Link from 'next/link'
+import { prisma } from "@lib/db";
+import AnnounceForm from "@/app/organization/announce/_components/AnnounceForm";
+import Link from "next/link";
 
-export default async function EditPage({ params }: { params: Promise<{ id: string }> }) {
-  const p = await params
+export default async function EditPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const p = await params;
 
-  const a = await prisma.announcement.findUnique({ where: { id: p.id } }).catch(() => null)
+  const a = await prisma.announcement
+    .findUnique({ where: { id: p.id } })
+    .catch(() => null);
 
   if (!a) {
     return (
@@ -19,16 +24,16 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
           ← ย้อนกลับ
         </Link>
       </main>
-    )
+    );
   }
 
   const teams = await prisma.team
     .findMany({
       where: { organizationId: a.organizationId },
       select: { id: true, name: true },
-      orderBy: { name: 'asc' },
+      orderBy: { name: "asc" },
     })
-    .catch(() => [])
+    .catch(() => []);
 
   return (
     <main className="w-[90%] mx-auto p-6 space-y-4">
@@ -43,20 +48,21 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
       </div>
 
       <AnnounceForm
-        action={`/api/announce/${p.id}`}
+        action={`/organization/api/announce/${p.id}`}
         method="POST"
         submitLabel="อัปเดต"
         showDelete={true}
-        deleteAction={`/api/announce/${p.id}`}
+        deleteAction={`/organization/api/announce/${p.id}`}
+        redirectTo={`/organization/announce/${p.id}/view`}
         defaults={{
           title: a.title,
           content: a.content,
           organizationId: a.organizationId,
-          ...(a as any).type ? { type: (a as any).type } : {},
-          ...(a as any).teamId ? { teamId: (a as any).teamId } : {},
+          ...((a as any).type ? { type: (a as any).type } : {}),
+          ...((a as any).teamId ? { teamId: (a as any).teamId } : {}),
         }}
         teams={teams}
       />
     </main>
-  )
+  );
 }

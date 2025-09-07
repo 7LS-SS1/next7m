@@ -17,11 +17,25 @@ const categories: CategoryItem[] = [
   { title: "โปรโมชั่น", desc: "โบนัส & กิจกรรม", emoji: "🎁", href: "/extensions" },
 ];
 
-const announceItems = [
-  { text: "อัปเดตระบบความปลอดภัยบัญชี — เปิด 2FA แล้ววันนี้", time: "15:32" },
-  { text: "ทัวร์นาเมนต์สล็อตแจก $50,000 เริ่มคืนวันศุกร์", time: "เมื่อวาน" },
-  { text: "เพิ่มเกมใหม่ 20 รายการจากค่ายยอดนิยม", time: "2 วันก่อน" },
-];
+// ดึงประกาศล่าสุดจากตาราง announcement
+async function fetchAnnouncements() {
+  const rows = await prisma.announcement
+    .findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { id: true, title: true, createdAt: true },
+    })
+    .catch(() => [] as { id: string; title: string | null; createdAt: Date }[]);
+
+  // map ให้เข้ารูปแบบ AnnouncementsCard: { id, text, time, href }
+  return rows.map((r) => ({
+    id: r.id,
+    text: r.title ?? "ประกาศ",
+    // ใช้วันที่แบบ ISO ย่อเพื่อกัน hydration mismatch
+    time: r.createdAt ? r.createdAt.toISOString().slice(0, 10) : "",
+    href: `/organization/announce/${r.id}/view`,
+  }));
+}
 
 // ดึง Program/Plugin ล่าสุด (order by updatedAt desc)
 async function fetchLatest() {
@@ -74,7 +88,10 @@ async function fetchLatest() {
 }
 
 export default async function DashboardPage() {
-  const { plugins, programs } = await fetchLatest();
+  const [{ plugins, programs }, announceItems] = await Promise.all([
+    fetchLatest(),
+    fetchAnnouncements(),
+  ]);
 
   return (
     <div className="min-h-dvh">
@@ -99,8 +116,8 @@ export default async function DashboardPage() {
               </Link>
             </div>
             {plugins.length === 0 ? (
-              <EmptyState label="ยังไม่มี Plugins" href="/extensions/plugins/new" />
-            ) : (
+              <EmptyState label="ยังไม่มี Plugins" href="/extensions/plugins/new" />)
+              : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {plugins.map((p: any) => (
                   <ProgramCard key={p.id} item={p} basePath="/extensions/plugins" />
@@ -121,8 +138,8 @@ export default async function DashboardPage() {
               </Link>
             </div>
             {programs.length === 0 ? (
-              <EmptyState label="ยังไม่มี Programs" href="/extensions/programs/new" />
-            ) : (
+              <EmptyState label="ยังไม่มี Programs" href="/extensions/programs/new" />)
+              : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {programs.map((p: any) => (
                   <ProgramCard key={p.id} item={p} basePath="/extensions/programs" />

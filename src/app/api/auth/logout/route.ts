@@ -1,11 +1,15 @@
-import { NextResponse, NextRequest } from "next/server";
+export const runtime = "nodejs";
+
+import { NextResponse } from "next/server";
 import { destroySession } from "@lib/auth-server";
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   await destroySession();
-  return NextResponse.redirect(new URL("/login", req.url));
+  // ✅ ยึด origin ของ req เสมอ
+  return NextResponse.redirect(new URL("/login", req.url), { status: 302 });
 }
 
-export async function GET() {
-  return NextResponse.json({ ok: false, error: "Method Not Allowed" }, { status: 405 });
+export async function GET(req: Request) {
+  await destroySession();
+  return NextResponse.redirect(new URL("/login", req.url), { status: 302 });
 }
