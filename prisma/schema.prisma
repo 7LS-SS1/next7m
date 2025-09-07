@@ -35,7 +35,8 @@ model Domain {
   hostMail         EmailAccount? @relation("HostMail",       fields: [hostMailId],       references: [id], onDelete: SetNull)
   hostType         HostType?     @relation(                   fields: [hostTypeId],      references: [id], onDelete: SetNull)
   team             Team?         @relation(                   fields: [teamId],          references: [id], onDelete: SetNull)
-
+  wordpress        Wordpress?
+  
   @@index([name])
   @@index([status])
   @@index([registeredAt])
@@ -47,6 +48,22 @@ model Domain {
   @@index([cloudflareMailId])
   @@index([teamId])
   @@index([ip])
+}
+
+model Wordpress {
+  id           String   @id @default(cuid())
+  domainId     String   @unique
+  domain       Domain   @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  url          String?  @db.VarChar(512)
+  user         String?  @db.VarChar(128)
+  passwordHash String?  @db.VarChar(255)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([url])
 }
 
 model AllHost {

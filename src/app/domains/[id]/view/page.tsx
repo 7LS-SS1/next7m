@@ -6,11 +6,19 @@ import StatusProbe from "../../_components/StatusProbe";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import StatusHistory from "../../_components/StatusHistory";
 import LivePreview from "../../_components/LivePreview";
+import WordpressQuickAdd from "../../_components/WordpressQuickAdd";
+import CodeSnippet from "../../_components/CodeSnippet";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function Chip({ text, tone = "gray" }: { text: string; tone?: "green" | "cyan" | "gray" | "rose" | "yellow" }) {
+function Chip({
+  text,
+  tone = "gray",
+}: {
+  text: string;
+  tone?: "green" | "cyan" | "gray" | "rose" | "yellow";
+}) {
   const map: Record<string, string> = {
     green: "bg-green-600/20 text-green-400",
     cyan: "bg-cyan-600/20 text-cyan-400",
@@ -18,10 +26,20 @@ function Chip({ text, tone = "gray" }: { text: string; tone?: "green" | "cyan" |
     rose: "bg-rose-600/20 text-rose-300",
     yellow: "bg-yellow-600/20 text-yellow-300",
   };
-  return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${map[tone]}`}>{text}</span>;
+  return (
+    <span
+      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${map[tone]}`}
+    >
+      {text}
+    </span>
+  );
 }
 
-export default async function DomainViewPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function DomainViewPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   // โปรเจคนี้ใช้ Dynamic APIs → ต้อง await params
   const { id } = await params;
 
@@ -52,21 +70,54 @@ export default async function DomainViewPage({ params }: { params: Promise<{ id:
 
   if (!domain) return notFound();
 
-  const fmt = (d?: Date | null) => (d ? new Date(d).toISOString().slice(0, 10) : "-");
+  let wordpress: {
+    id: string;
+    user: string | null;
+    url: string | null;
+    passwordHash: string | null;
+  } | null = null;
+  try {
+    const anyPrisma = prisma as any;
+    const WP = anyPrisma.wordpress;
+    if (WP?.findFirst) {
+      wordpress = await WP.findFirst({
+        where: { domainId: domain.id },
+        select: { id: true, user: true, url: true, passwordHash: true },
+      });
+    }
+  } catch {}
+
+  const fmt = (d?: Date | null) =>
+    d ? new Date(d).toISOString().slice(0, 10) : "-";
 
   return (
     <div className="grid gap-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/domains" className="rounded-xl border border-white/15 px-4 py-2 text-sm hover:bg-white/5">
+          <Link
+            href="/domains"
+            className="rounded-xl border border-white/15 px-4 py-2 text-sm hover:bg-white/5"
+          >
             ย้อนกลับ
           </Link>
           <h1 className="text-xl font-bold">{domain.name}</h1>
         </div>
         <div className="hidden md:flex items-center gap-2">
-          <Link href={`https://${domain.name}`} className="rounded-lg border border-white/10 px-3 py-1.5 hover:bg-white/10" target="_blank">เปิด HTTPS</Link>
-          <Link href={`http://${domain.name}`} className="rounded-lg border border-white/10 px-3 py-1.5 hover:bg-white/10" target="_blank">เปิด HTTP</Link>
+          <Link
+            href={`https://${domain.name}`}
+            className="rounded-lg border border-white/10 px-3 py-1.5 hover:bg-white/10"
+            target="_blank"
+          >
+            เปิด HTTPS
+          </Link>
+          <Link
+            href={`http://${domain.name}`}
+            className="rounded-lg border border-white/10 px-3 py-1.5 hover:bg-white/10"
+            target="_blank"
+          >
+            เปิด HTTP
+          </Link>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -95,7 +146,11 @@ export default async function DomainViewPage({ params }: { params: Promise<{ id:
           {/* Live Preview */}
           {/* <LivePreview initialUrl={`https://${domain.name}`} /> */}
           {/* <LivePreview initialUrl={domain.name} viewportWidth={1280} aspect={16/4.5} /> */}
-          <LivePreview initialUrl={domain.name} viewportWidth={1920} viewportHeight={1080} />
+          <LivePreview
+            initialUrl={`https://${domain.name}`}
+            viewportWidth={1920}
+            viewportHeight={1080}
+          />
         </div>
         <div className="card p-4 flex flex-col gap-2">
           <label className="text-sm opacity-70">สถานะ</label>
@@ -115,9 +170,9 @@ export default async function DomainViewPage({ params }: { params: Promise<{ id:
           </div>
           <hr className="border-t border-white/10 my-2" />
           <label className="text-sm opacity-70">Host / Type</label>
-            <div className="flex flex-wrap gap-2">
-              <Chip text={domain.host?.name ?? "-"} tone="gray" />
-              <Chip text={domain.hostType?.name ?? "-"} tone="gray" />
+          <div className="flex flex-wrap gap-2">
+            <Chip text={domain.host?.name ?? "-"} tone="gray" />
+            <Chip text={domain.hostType?.name ?? "-"} tone="gray" />
           </div>
           <hr className="border-t border-white/10 my-2" />
           <div className="w-full">
@@ -125,17 +180,29 @@ export default async function DomainViewPage({ params }: { params: Promise<{ id:
             <StatusHistory url={`https://${domain.name}`} />
           </div>
         </div>
-        
+
         <div className="card p-4 flex flex-col gap-2">
           <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
             <div className="grid gap-3">
-              <Item label="Cloudflare Mail" value={domain.cloudflareMail?.address ?? "-"} />
-              <Item label="Domain Mail" value={domain.domainMail?.address ?? "-"} />
+              <Item
+                label="Cloudflare Mail"
+                value={domain.cloudflareMail?.address ?? "-"}
+              />
+              <Item
+                label="Domain Mail"
+                value={domain.domainMail?.address ?? "-"}
+              />
               <Item label="Host Mail" value={domain.hostMail?.address ?? "-"} />
               <Item label="IP" value={domain.ip ?? "-"} />
-              <Item label="ลง WordPress" value={domain.wordpressInstall ? "Yes" : "No"} />
+              <Item
+                label="ลง WordPress"
+                value={domain.wordpressInstall ? "Yes" : "No"}
+              />
               <Item label="Redirect" value={domain.redirect ? "On" : "Off"} />
-              <Item label="Active" value={domain.activeStatus ? "Active" : "Inactive"} />
+              <Item
+                label="Active"
+                value={domain.activeStatus ? "Active" : "Inactive"}
+              />
             </div>
             <hr className="border-t border-white/10 my-2" />
             <div className="grid gap-3">
@@ -152,11 +219,16 @@ export default async function DomainViewPage({ params }: { params: Promise<{ id:
               </div>
             </div>
             <div>
-              <Item label="ราคาที่จด" value={
-                typeof domain.price === "number"
-                  ? new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(domain.price) + " บาท"
-                  : "-"
-              } />
+              <Item
+                label="ราคาที่จด"
+                value={
+                  typeof domain.price === "number"
+                    ? new Intl.NumberFormat("th-TH", {
+                        maximumFractionDigits: 2,
+                      }).format(domain.price) + " บาท"
+                    : "-"
+                }
+              />
             </div>
             <hr className="border-t border-white/10 my-2" />
             <div className="grid gap-3">
@@ -165,6 +237,38 @@ export default async function DomainViewPage({ params }: { params: Promise<{ id:
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="card p-4 min-h-[64px]">
+        {!domain.wordpressInstall ? (
+          <div className="grid gap-3">
+            <div className="text-sm opacity-80">
+              เพิ่ม WordPress ใหม่ให้โดเมนนี้
+            </div>
+            <WordpressQuickAdd domainId={domain.id} />
+          </div>
+        ) : wordpress ? (
+          <div className="grid gap-3 max-w-xl">
+            <div className="text-sm font-medium">ข้อมูล WordPress</div>
+            <div className="grid gap-2">
+              <CodeSnippet
+                title="User"
+                code={wordpress?.user ?? "-"}
+              />
+              <CodeSnippet
+                title="Pass"
+                code={wordpress?.passwordHash ?? "-"}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            <div className="text-sm opacity-80">
+              เปิดใช้ WordPress แล้ว แต่ยังไม่มีรายละเอียดในระบบ
+            </div>
+            <WordpressQuickAdd domainId={domain.id} />
+          </div>
+        )}
       </div>
     </div>
   );

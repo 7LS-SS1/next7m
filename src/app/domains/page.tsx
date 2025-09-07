@@ -9,10 +9,61 @@ export const revalidate = 0;
 
 type PageProps = { searchParams: Promise<{ q?: string }> };
 
+type Where =
+  | {}
+  | {
+      OR: (
+        | { name: { contains: string; mode: "insensitive" } }
+        | { note: { contains: string; mode: "insensitive" } }
+      )[];
+    };
+
 async function checkIsAdmin() {
   const session = await getSession().catch(() => null);
   const role = session?.role ?? null;
   return role === "ADMIN" || role === "SYSTEM";
+}
+
+async function fetchDomains(where: Where) {
+  // รีทรายกันเคส connection drop / transient errors
+  const maxAttempts = 3;
+  let lastErr: unknown = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await prisma.domain.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          note: true,
+          status: true,
+          createdAt: true,
+          team: { select: { name: true } },
+          host: { select: { name: true } },
+          hostType: { select: { name: true } },
+        },
+      });
+    } catch (e: any) {
+      lastErr = e;
+      const msg = e?.message || "";
+      const code = e?.code || "";
+      const transient =
+        msg.includes("Server has closed the connection") ||
+        code === "P1001" || // cannot reach database server
+        code === "P1008" || // timed out
+        code === "P2024";   // timeout waiting for a connection
+
+      if (!transient || attempt === maxAttempts) {
+        // ล้มถาวร หรือครบจำนวนครั้ง → โยนให้ error boundary ของหน้า
+        throw e;
+      }
+      // backoff เล็กน้อยแล้วลองใหม่
+      await new Promise((r) => setTimeout(r, 200 * attempt));
+    }
+  }
+  // ปกติจะไม่ถึงบรรทัดนี้
+  throw lastErr ?? new Error("Unknown error");
 }
 
 export default async function DomainsPage({ searchParams }: PageProps) {
@@ -21,30 +72,17 @@ export default async function DomainsPage({ searchParams }: PageProps) {
   const q = (sp?.q ?? "").trim();
 
   // สร้าง where แบบยืดหยุ่น (มี/ไม่มี q)
-  const where =
+  const where: Where =
     q !== ""
       ? {
           OR: [
-            { name: { contains: q, mode: "insensitive" as const } },
-            { note: { contains: q, mode: "insensitive" as const } },
+            { name: { contains: q, mode: "insensitive" } },
+            { note: { contains: q, mode: "insensitive" } },
           ],
         }
       : {};
 
-  const rows = await prisma.domain.findMany({
-    where,
-  orderBy: { createdAt: "desc" },
-  select: {
-    id: true,
-    name: true,
-    note: true,
-    status: true,
-    createdAt: true,
-    team: { select: { name: true } },
-    host: { select: { name: true } },
-    hostType: { select: { name: true } },
-  },
-  });
+  const rows = await fetchDomains(where);
 
   return (
     <div className="grid gap-4">
@@ -59,7 +97,7 @@ export default async function DomainsPage({ searchParams }: PageProps) {
               placeholder="ค้นหาโดเมน/หมายเหตุ..."
               className="rounded-xl bg-white/5 px-4 py-2 outline-none"
             />
-            <button className="rounded-xl border border-white/10 px-4 py-2 hover:bg-white/10">
+            <button type="submit" className="rounded-xl border border-white/10 px-4 py-2 hover:bg-white/10">
               ค้นหา
             </button>
           </form>

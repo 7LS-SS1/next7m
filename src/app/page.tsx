@@ -1,15 +1,13 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-// src/app/page.tsx
 import DashboardPage from "./dashboard/page";
+import { getSession } from "@lib/auth-server";
 
 export default async function Page() {
-  const cookieStore = await cookies();
-  const uid = cookieStore.get('uid')?.value;
-  if (!uid) {
-    redirect('/login');
+  const session = await getSession();
+
+  if (!session) {
+    redirect("/login");
   }
-  return (
-    <DashboardPage />
-  );
+
+  return <DashboardPage />;
 }
