@@ -85,7 +85,8 @@ export default function PluginForm({
     const form = e.currentTarget;
 
     // ✅ validate ชื่อ + URL ไฟล์
-    const nameInput = form.querySelector<HTMLInputElement>('input[name="name"]');
+    const nameInput =
+      form.querySelector<HTMLInputElement>('input[name="name"]');
     if (!nameInput?.value.trim()) {
       toast.error("กรอกชื่อปลั๊กอินก่อนบันทึก");
       nameInput?.focus();
@@ -95,9 +96,18 @@ export default function PluginForm({
     //   toast.error("กรุณาวางลิงก์ไฟล์ปลั๊กอิน (fileUrl) ก่อนบันทึก");
     //   return;
     // }
+    const fileInput =
+      form.querySelector<HTMLInputElement>('input[name="file"]');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+      toast.error("กรุณาเลือกไฟล์ปลั๊กอิน (.zip/.tar.gz/.rar/.7z)");
+      return;
+    }
 
     setLoading(true);
     const fd = new FormData(form);
+
+    if (fileUrl.trim()) fd.set("fileUrl", fileUrl.trim());
+    if (iconUrl.trim()) fd.set("iconUrl", iconUrl.trim());
 
     // ❌ ไม่ส่งไฟล์ดิบขึ้น API
     fd.delete("file");
@@ -108,15 +118,17 @@ export default function PluginForm({
 
     try {
       const res = await fetch(actionUrl, { method: "POST", body: fd });
-      const payload = await res.json().catch(() => ({} as any));
+      const payload = await res.json().catch(() => ({}) as any);
 
       if (!res.ok || payload?.ok === false) {
-        throw new Error(payload?.message || payload?.error || "บันทึกไม่สำเร็จ");
+        throw new Error(
+          payload?.message || payload?.error || "บันทึกไม่สำเร็จ"
+        );
       }
 
-      const createdId = (payload?.data?.id || payload?.program?.id || payload?.plugin?.id) as
-        | string
-        | undefined;
+      const createdId = (payload?.data?.id ||
+        payload?.program?.id ||
+        payload?.plugin?.id) as string | undefined;
 
       toast.success("บันทึกสำเร็จ");
       form.reset();
@@ -169,7 +181,8 @@ export default function PluginForm({
     setPickedIcon(f);
     if (f) {
       toast.message("เลือกรูปไอคอนสำเร็จ", {
-        description: "โหมด URL เท่านั้น: กรุณาวางลิงก์ไอคอนในช่องด้านล่าง (ถ้ามี)",
+        description:
+          "โหมด URL เท่านั้น: กรุณาวางลิงก์ไอคอนในช่องด้านล่าง (ถ้ามี)",
       });
     }
   }
@@ -179,7 +192,9 @@ export default function PluginForm({
     setDragOver(false);
 
     // รองรับลาก “ลิงก์ URL” เพื่อเติม fileUrl อัตโนมัติ
-    const uri = e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain");
+    const uri =
+      e.dataTransfer.getData("text/uri-list") ||
+      e.dataTransfer.getData("text/plain");
     if (uri && /^https?:\/\//i.test(uri.trim())) {
       setFileUrl(uri.trim());
       toast.success("เติม URL จากการลากลิงก์สำเร็จ");
@@ -199,34 +214,21 @@ export default function PluginForm({
   return (
     <form
       onSubmit={onSubmit}
+      encType="multipart/form-data"
       className="card mx-auto w/full max-w-4xl rounded-2xl border border-white/10 bg-[rgb(var(--card))]/70 p-5 backdrop-blur"
     >
+      {defaults?.id && <input type="hidden" name="id" value={defaults.id} />}
       {/* Header */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base sm:text-lg font-semibold">สร้าง / แก้ไข Plugin</h2>
+          <h2 className="text-base sm:text-lg font-semibold">
+            สร้าง / แก้ไข Plugin
+          </h2>
           <p className="text-xs text-white/50">
-            โหมด URL เท่านั้น — ยังมี Drag & Drop เพื่อช่วยระบุไฟล์/ลิงก์ แต่จะไม่อัปโหลดไฟล์อัตโนมัติ
+            โหมด URL เท่านั้น — ยังมี Drag & Drop เพื่อช่วยระบุไฟล์/ลิงก์
+            แต่จะไม่อัปโหลดไฟล์อัตโนมัติ
           </p>
         </div>
-        <button
-          type="submit"
-          disabled={loading || !fileUrl.trim()}
-          className="mt-2 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 px-4 py-2 text-sm text-black hover:brightness-95 disabled:opacity-60 sm:mt-0"
-          aria-label="บันทึก Plugin"
-        >
-          {loading ? (
-            <span className="inline-flex items-center gap-2">
-              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" aria-hidden>
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-20" />
-                <path d="M22 12a10 10 0 0 1-10 10" fill="none" stroke="currentColor" strokeWidth="3" className="opacity-80" />
-              </svg>
-              กำลังบันทึก...
-            </span>
-          ) : (
-            "บันทึก Plugin"
-          )}
-        </button>
       </div>
 
       {/* Divider */}
@@ -322,7 +324,9 @@ export default function PluginForm({
         <section className="grid gap-4">
           {/* DragDrop กล่องใหญ่ — ไม่อัปโหลด แค่ช่วยรับไฟล์/URL */}
           <div>
-            <FieldLabel>Drag & Drop / เลือกไฟล์ (ไม่อัปโหลดอัตโนมัติ)</FieldLabel>
+            <FieldLabel>
+              Drag & Drop / เลือกไฟล์ (ไม่อัปโหลดอัตโนมัติ)
+            </FieldLabel>
             <div
               onDragOver={(e) => {
                 e.preventDefault();
@@ -369,7 +373,8 @@ export default function PluginForm({
                     {pickedFile.name}
                   </div>
                   <span className="text-[11px] text-white/60">
-                    {(pickedFile.size / 1024 / 1024).toFixed(2)} MB • โหมด URL เท่านั้น
+                    {(pickedFile.size / 1024 / 1024).toFixed(2)} MB • โหมด URL
+                    เท่านั้น
                   </span>
                   <span className="text-[11px] text-white/45">
                     วางลิงก์ไฟล์ในช่องด้านล่างเพื่อใช้งานจริง
@@ -378,7 +383,8 @@ export default function PluginForm({
               ) : (
                 <div className="grid gap-0.5">
                   <span className="text-sm font-medium">
-                    ลาก “ไฟล์” เพื่อดูชื่อ/ขนาด หรือ “ลากลิงก์ URL” เพื่อเติมอัตโนมัติ
+                    ลาก “ไฟล์” เพื่อดูชื่อ/ขนาด หรือ “ลากลิงก์ URL”
+                    เพื่อเติมอัตโนมัติ
                   </span>
                   <span className="text-[11px] text-white/60">
                     รองรับ .zip, .tar.gz, .rar, .7z — *ไม่อัปโหลดไฟล์*
@@ -387,7 +393,8 @@ export default function PluginForm({
               )}
             </div>
             <Hint>
-              หากลาก “ลิงก์ URL” จากที่เก็บไฟล์ของคุณ จะเติมช่องด้านล่างให้อัตโนมัติ
+              หากลาก “ลิงก์ URL” จากที่เก็บไฟล์ของคุณ
+              จะเติมช่องด้านล่างให้อัตโนมัติ
             </Hint>
           </div>
 
@@ -402,15 +409,29 @@ export default function PluginForm({
                     alt="icon preview"
                     className="h-10 w-10 object-contain"
                     onLoad={(e) =>
-                      URL.revokeObjectURL((e.currentTarget as HTMLImageElement).src)
+                      URL.revokeObjectURL(
+                        (e.currentTarget as HTMLImageElement).src
+                      )
                     }
                   />
                 ) : iconUrl ? (
-                  <img src={iconUrl} alt="current icon" className="h-10 w-10 object-contain" />
+                  <img
+                    src={iconUrl}
+                    alt="current icon"
+                    className="h-10 w-10 object-contain"
+                  />
                 ) : defaults?.iconUrl ? (
-                  <img src={defaults.iconUrl} alt="default icon" className="h-10 w-10 object-contain" />
+                  <img
+                    src={defaults.iconUrl}
+                    alt="default icon"
+                    className="h-10 w-10 object-contain"
+                  />
                 ) : (
-                  <svg viewBox="0 0 24 24" className="h-8 w-8 text-white/60" aria-hidden>
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-8 w-8 text-white/60"
+                    aria-hidden
+                  >
                     <path
                       d="M12 5v14M5 12h14"
                       stroke="currentColor"
@@ -473,7 +494,6 @@ export default function PluginForm({
               value={fileUrl}
               onChange={(e) => setFileUrl(e.target.value)}
               className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 outline-none transition focus:ring-2 focus:ring-white/10"
-            
             />
             {fileUrl && (
               <a
@@ -508,11 +528,19 @@ export default function PluginForm({
 
           <div className="grid grid-cols-2 gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="recommended" defaultChecked={defaults?.recommended} />
+              <input
+                type="checkbox"
+                name="recommended"
+                defaultChecked={defaults?.recommended}
+              />
               แนะนำ (Recommended)
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="featured" defaultChecked={defaults?.featured} />
+              <input
+                type="checkbox"
+                name="featured"
+                defaultChecked={defaults?.featured}
+              />
               แสดงในหน้าแรก (Featured)
             </label>
           </div>
@@ -523,14 +551,31 @@ export default function PluginForm({
       <div className="mt-5 flex justify-end">
         <button
           type="submit"
-          disabled={loading || !pickedFile }
+          disabled={loading || !pickedFile}
           className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 px-4 py-2 text-sm text-black hover:brightness-95 disabled:opacity-60"
         >
           {loading ? (
             <span className="inline-flex items-center gap-2">
-              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" aria-hidden>
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-20" />
-                <path d="M22 12a10 10 0 0 1-10 10" fill="none" stroke="currentColor" strokeWidth="3" className="opacity-80" />
+              <svg
+                className="h-4 w-4 animate-spin"
+                viewBox="0 0 24 24"
+                aria-hidden
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  className="opacity-20"
+                />
+                <path
+                  d="M22 12a10 10 0 0 1-10 10"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  className="opacity-80"
+                />
               </svg>
               กำลังบันทึก...
             </span>

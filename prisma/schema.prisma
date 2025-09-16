@@ -179,6 +179,15 @@ model Plugin {
   content     String?
   iconUrl     String?
   fileUrl     String?
+  // ▼ เพิ่มเมทาดาทาไฟล์
+  fileBlob    Bytes?   
+  fileKey     String?  @db.VarChar(200) // คีย์ภายใน storage เช่น "plugins/abc123.zip"
+  fileSize    Int?
+  fileMime    String?  @db.VarChar(120)
+  fileHash    String?  @db.VarChar(128) // sha256
+  storage     String?  @default("local") @db.VarChar(50) // local|s3|gcs
+
+
   recommended Boolean  @default(false)
   featured    Boolean  @default(false)
   slug        String?  @unique @db.VarChar(120)
@@ -257,7 +266,6 @@ model User {
   @@index([organizationId])
 }
 
-/* สมาชิกในองค์กร (แอประบุ membership.role ไว้) */
 model Membership {
   id             String   @id @default(cuid())
   organizationId String
@@ -304,4 +312,64 @@ model Work {
 
   assignedTo      User?    @relation("WorkAssignedTo", fields: [assignedToId], references: [id])
   organization    Organization @relation(fields: [organizationId], references: [id])
+}
+
+
+// เพิ่ม model สำหรับลงชื่อเข้างานรายวัน + ช่วงพัก + บันทึกงาน
+// สำหรับลงชื่อเข้างานรายวัน เบื้องต้น
+enum TimeStatus {
+  NONE
+  WORKING
+  ON_BREAK
+  DONE
+}
+
+model AttendanceDay {
+  id               String        @id @default(cuid())
+  userId           String
+  date             DateTime      @db.Date
+  clockInAt        DateTime?
+  clockOutAt       DateTime?
+  totalWorkSeconds Int           @default(0)    // รวมเวลาทำงานของวัน (วินาที)
+  totalBreakSeconds Int          @default(0)    // รวมเวลาพักของวัน (วินาที)
+  status           TimeStatus    @default(NONE)
+  notes            String?
+
+  breaks           BreakInterval[]
+  workLogs         WorkLog[]
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model BreakInterval {
+  id             String       @id @default(cuid())
+  attendanceDayId String
+  start          DateTime
+  end            DateTime?
+
+  attendanceDay  AttendanceDay @relation(fields: [attendanceDayId], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([attendanceDayId, start])
+}
+
+model WorkLog {
+  id              String        @id @default(cuid())
+  attendanceDayId String
+  startedAt       DateTime?
+  endedAt         DateTime?
+  content         String        // ข้อความสรุปสิ่งที่ทำ
+
+  attendanceDay   AttendanceDay @relation(fields: [attendanceDayId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([attendanceDayId, createdAt])
 }

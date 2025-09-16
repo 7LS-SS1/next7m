@@ -1,95 +1,41 @@
-// src/app/extensions/plugins/api/create/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@lib/db";
+import { saveBufferToStorage, storageDownloadUrl } from "@lib/storage";
+
 export const runtime = "nodejs";
 
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import slugify from "@/lib/slugify";
-import { z } from "zod";
-import { RelOrAbsUrl } from "@/lib/zod-helpers";
-import { toBool, toStr } from "@/lib/form";
-
-// ✅ รับเฉพาะ URL ที่ได้จากการอัปโหลดไป Blob แล้วเท่านั้น
-const BodySchema = z.object({
-  name: z.string().min(1, "ต้องใส่ชื่อ").transform((v) => v.trim()),
-  version: z.string().optional(),
-  vendor: z.string().optional(),
-  category: z
-    .string()
-    .trim()
-    .transform((v) => (v && v.length > 0 ? v : "Etc."))
-    .default("Etc."),
-  content: z.string().optional(),
-  iconUrl: RelOrAbsUrl.optional()
-    .or(z.literal(""))
-    .transform((v) => (v ? v : undefined)),
-  fileUrl: RelOrAbsUrl.optional()
-    .or(z.literal(""))
-    .transform((v) => (v ? v : undefined)),
-  // รองรับทั้ง recommended และ isRecommended จากฟอร์มเดิม
-  recommended: z.boolean().optional().default(false),
-  isRecommended: z.boolean().optional().default(false),
-  featured: z.boolean().optional().default(false),
-});
-
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const fd = await req.formData();
+    const form = await req.formData();
+    const file = form.get("file") as File | null;
+    const name = String(form.get("name") || "").trim();
+    if (!name) return NextResponse.json({ ok: false, error: "missing name" }, { status: 400 });
+    if (!file) return NextResponse.json({ ok: false, error: "missing file" }, { status: 400 });
 
-    // ❌ ไม่รองรับไฟล์ดิบอีกต่อไป (อัปโหลดที่ client → ได้ URL → ส่งมาเท่านั้น)
-    // const iconFile = fd.get("icon") as File | null;
-    // const mainFile = fd.get("file") as File | null;
+    const buf = Buffer.from(await file.arrayBuffer());
+    const original = (file as any).name || "plugin";
+    const ext = original.includes(".") ? original.split(".").pop()! : "zip";
 
-    const raw = {
-      name: toStr(fd.get("name")),
-      version: toStr(fd.get("version")),
-      vendor: toStr(fd.get("vendor")),
-      category: toStr(fd.get("category")) ?? "Etc.",
-      content: toStr(fd.get("content")),
-      iconUrl: toStr(fd.get("iconUrl")) ?? undefined,
-      fileUrl: toStr(fd.get("fileUrl")) ?? undefined,
-      recommended: toBool(fd.get("recommended")),
-      isRecommended:
-        toBool(fd.get("isRecommended")) || toBool(fd.get("recommended")),
-      featured: toBool(fd.get("featured")),
-    };
+    const saved = await saveBufferToStorage(buf, ext);
+    const fileUrl = storageDownloadUrl(saved.key);
 
-    const parsed = BodySchema.safeParse(raw);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid input", issues: parsed.error.issues },
-        { status: 400 }
-      );
-    }
-
-    const data = parsed.data;
-    const slug = slugify(data.name);
-
-    const created = await prisma.plugin.create({
+    const plugin = await prisma.plugin.create({
       data: {
-        name: data.name,
-        version: data.version ?? null,
-        vendor: data.vendor ?? null,
-        category: data.category || "Etc.",
-        content: data.content ?? null,
-        iconUrl: data.iconUrl ?? null,
-        fileUrl: data.fileUrl ?? null,
-        recommended: data.recommended || data.isRecommended || false,
-        featured: data.featured || false,
-        slug,
+        name,
+        version: (form.get("version") as string) || undefined,
+        vendor: (form.get("vendor") as string) || undefined,
+        pluginType: (form.get("pluginType") as string) || undefined,
+        category: ((form.get("category") as string) || "Misc.") as any,
+        content: (form.get("content") as string) || undefined,
+        iconUrl: (form.get("iconUrl") as string) || undefined,
+        fileUrl,
+        recommended: !!form.get("recommended"),
+        featured: !!form.get("featured"),
       },
-      select: { id: true, slug: true, name: true },
     });
 
-    return NextResponse.json({
-      ok: true,
-      status: "created",
-      message: "บันทึกปลั๊กอินสำเร็จ",
-      plugin: created,
-    });
-  } catch (err: any) {
-    return NextResponse.json(
-      { ok: false, error: err?.message || "Unexpected error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: true, plugin });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message || "upload_failed" }, { status: 500 });
   }
 }
